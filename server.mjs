@@ -5,6 +5,12 @@ import { resolve } from "node:path";
 
 const files = new Map([
   ["pawns.html", "text/html; charset=utf-8"],
+  ["characters.html", "text/html; charset=utf-8"],
+  ["characters.css", "text/css; charset=utf-8"],
+  ["characters.js", "text/javascript; charset=utf-8"],
+  ["character-checks.js", "text/javascript; charset=utf-8"],
+  ["pawn-character.js", "text/javascript; charset=utf-8"],
+  ["pawn-effects.js", "text/javascript; charset=utf-8"],
   ["pawn-review.html", "text/html; charset=utf-8"],
   ["pawn-engine.js", "text/javascript; charset=utf-8"],
   ["expression-checks.js", "text/javascript; charset=utf-8"],

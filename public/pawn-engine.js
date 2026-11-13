@@ -579,6 +579,7 @@ const DIRECTION_INDEX = Object.fromEntries(DIRECTIONS.map((value, index) => [val
 const EXPRESSION_INDEX = Object.fromEntries(EXPRESSIONS.map((value, index) => [value, index]));
 const FACE_VISIBLE = [true, true, true, false, false, false, true, true];
 const SIDE = [0, -1, -1, -1, 0, 1, 1, 1];
+const HELD_X = [0, -9, -13, -8, 8, 8, 13, 9];
 // A direction-specific 16×13 head-space window fits five double-resolution
 // expressions into one 64×84 slot. Two blank rows between sprites prevent
 // adjacent expressions bleeding into one another during filtered drawing.
@@ -589,11 +590,33 @@ function expressionIndex(expression) {
   return index;
 }
 
+// World-space attachment points share the exact rounding/bob used by drawing.
+function layoutPawn(a, { x, y, direction = "south", state = "idle", progress = 0, lift = 0 }, out) {
+  const index = DIRECTION_INDEX[direction];
+  if (!Number.isInteger(index)) throw new Error(`Unsupported direction: ${direction}.`);
+  if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(lift)) throw new Error("Position and lift must be finite numbers.");
+  const frame = frameIndex(state, progress), phase = frame / ANIMATION[state].frames * Math.PI * 2;
+  const { width, height, head } = a.proportions, profile = index === 2 || index === 6;
+  const sx = width * (profile ? .84 : 1);
+  const bob = (state === "walk" ? Math.abs(Math.sin(phase)) * 1.1 : Math.sin(phase) * .5) * height;
+  out.index = index; out.side = SIDE[index]; out.rear = !FACE_VISIBLE[index];
+  out.bodyX = Math.round(x - 32); out.bodyY = Math.round(y - 72) - bob - lift;
+  out.headX = out.bodyX + 32 + SIDE[index] * .7 * sx;
+  out.headY = out.bodyY + 72 - 43 * height; out.headScale = head;
+  // Conservative clearance includes the tallest current hair and headgear.
+  out.topY = out.headY - 22 * head;
+  out.heldX = out.bodyX + 32 + HELD_X[index] * sx;
+  out.heldY = out.bodyY + 72 - (out.rear ? 25 : profile ? 22 : 20) * height;
+  out.propScale = Math.min(width, height); out.bodyWidth = 28 * sx;
+  out.lift = lift; out.floorX = x; out.floorY = y; out.shadowScaleX = sx * width; out.shadowScaleY = height;
+  return out;
+}
+
 export function createPawnRenderer({ maxCacheBytes = 128 * 1024 * 1024 } = {}) {
   if (!Number.isSafeInteger(maxCacheBytes) || maxCacheBytes < PAGE_BYTES + SHADOW_BYTES + MASK_BYTES + RASTER_BYTES)
     throw new Error("The cache needs at least one page and raster buffers (2.66 MiB).");
   const maxPages = Math.floor((maxCacheBytes - SHADOW_BYTES - MASK_BYTES - RASTER_BYTES) / PAGE_BYTES);
-  const records = new Map(), styles = new Map(), leases = new WeakMap(), pages = [], free = [];
+  const records = new Map(), styles = new Map(), leases = new WeakMap(), pages = [], free = [], drawingLayout = {};
   let first = null, last = null, shadow = null, mask = null, raster = null, closed = false, revision = 0, nextId = 0;
   let builds = 0, faceBuilds = 0, hits = 0, misses = 0, evictions = 0, poses = 0, faceSheets = 0, preparations = 0;
   function assertOpen() { if (closed) throw new Error("Pawn renderer has been disposed."); }
@@ -694,21 +717,20 @@ export function createPawnRenderer({ maxCacheBytes = 128 * 1024 * 1024 } = {}) {
       const pawn = Object.freeze({ appearance: record.appearance });
       leases.set(pawn, { record, released: false }); return pawn;
     },
-    draw(ctx, pawn, { x, y, direction = "south", state = "idle", progress = 0, expression = "happy", shadow: showShadow = true } = {}) {
-      assertOpen(); const record = leaseFor(pawn).record, index = DIRECTION_INDEX[direction];
-      if (!Number.isInteger(index)) throw new Error(`Unsupported direction: ${direction}.`);
-      const face = expressionIndex(expression), frame = frameIndex(state, progress), a = record.appearance;
-      const profile = index === 2 || index === 6, sx = a.proportions.width * (profile ? .84 : 1);
-      if (showShadow) ctx.drawImage(shadowImage(), x - 32 * sx * a.proportions.width, y - 8 * a.proportions.height, 64 * sx * a.proportions.width, 16 * a.proportions.height);
-      const phase = frame / ANIMATION[state].frames * Math.PI * 2;
-      const bob = (state === "walk" ? Math.abs(Math.sin(phase)) * 1.1 : Math.sin(phase) * .5) * a.proportions.height;
-      const dx = Math.round(x - 32), dy = Math.round(y - 72) - bob;
+    layout(pawn, options, out = {}) {
+      assertOpen(); return layoutPawn(leaseFor(pawn).record.appearance, options, out);
+    },
+    draw(ctx, pawn, options = {}) {
+      assertOpen(); const record = leaseFor(pawn).record, a = record.appearance;
+      const face = expressionIndex(options.expression === undefined ? "happy" : options.expression);
+      const rig = layoutPawn(a, options, drawingLayout), index = rig.index;
+      if (options.shadow !== false) ctx.drawImage(shadowImage(), rig.floorX - 32 * rig.shadowScaleX, rig.floorY - 8 * rig.shadowScaleY, 64 * rig.shadowScaleX, 16 * rig.shadowScaleY);
       const body = poseFor(record, index);
-      ctx.drawImage(body.page.canvas, body.x, body.y, FRAME_WIDTH, FRAME_HEIGHT, dx, dy, FRAME_WIDTH, FRAME_HEIGHT);
+      ctx.drawImage(body.page.canvas, body.x, body.y, FRAME_WIDTH, FRAME_HEIGHT, rig.bodyX, rig.bodyY, FRAME_WIDTH, FRAME_HEIGHT);
       if (FACE_VISIBLE[index] && a.hat !== "greathelm") {
-        const sheet = poseFor(record.style, index), head = a.proportions.head;
+        const sheet = poseFor(record.style, index), head = rig.headScale;
         ctx.drawImage(sheet.page.canvas, sheet.x + face % 2 * 32, sheet.y + Math.floor(face / 2) * 28, 32, 26,
-          dx + 32 + SIDE[index] * .7 * sx + FACE_X[index] * head, dy + 72 - 43 * a.proportions.height - .5 * head, 16 * head, 13 * head);
+          rig.headX + FACE_X[index] * head, rig.headY - .5 * head, 16 * head, 13 * head);
       }
     },
     async warm(requests, { budgetMs = 4, signal, onProgress } = {}) {

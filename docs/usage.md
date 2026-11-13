@@ -1,5 +1,7 @@
 # Workshop and game integration
 
+For card-table actions, reaction bubbles, seated characters, and stink effects, use the [character layer](characters.md).
+
 Run `npm start` and open `/pawns.html`. Customize clothing, hair, headgear, bags, back equipment, belt equipment, colors, and proportions. Class presets include warrior, knight, monk, archer, ranger, mage, cleric, rogue, and bard. Colors map to the shared 25-color palette; contours use solid black.
 
 Expressions are independent runtime state. Changing the workshop's expression control does not prepare another appearance. The crowd benchmark offers independent reaction events and a stress mode in which every pawn changes expression every frame. `/pawn-review.html` reviews wardrobe angles and runs real-canvas expression alignment and occlusion checks.

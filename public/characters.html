@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Pawn Engine · Character actions</title><link rel="icon" href="/favicon.svg"><link rel="stylesheet" href="/pawns.css"><link rel="stylesheet" href="/characters.css"></head>
+<body>
+<header><a href="/">PAWN ENGINE</a><span>CHARACTER ACTIONS</span><small><a href="/pawns.html">Appearance workshop ↗</a></small></header>
+<section class="intro"><div><p class="eyebrow">SHOP CHARACTER LAB</p><h1>A little more character.</h1><p>Cards, thoughts, and everyday shop life. Shared sprites, sized to the pawn.</p></div></section>
+<main class="layout">
+<aside class="panel controls">
+<h2>Your character</h2>
+<label>Class preset<select id="class"><option value="">Workshop appearance</option></select></label>
+<label>Hair<select id="hair"></select></label><label>Headgear<select id="hat"></select></label>
+<label>Height<output id="height-value">100%</output><input id="height" type="range" min="85" max="115" value="100"></label>
+<label>Head size<output id="head-value">100%</output><input id="head" type="range" min="85" max="115" value="100"></label>
+<label>Body width<output id="width-value">100%</output><input id="width" type="range" min="80" max="120" value="100"></label>
+<label>Facing<select id="direction"></select></label>
+<label>Posture<select id="posture"><option value="seated">Seated at table</option><option value="standing">Standing</option></select></label>
+<label>Action<select id="action"></select></label>
+<label>Cards held<select id="cards"><option>1</option><option>2</option><option>3</option><option selected>4</option><option>5</option><option>6</option><option>7</option></select></label>
+<label>Base expression<select id="expression"></select></label>
+<label class="toggle"><input id="stinky" type="checkbox"> Stinky</label>
+<div class="buttons"><button id="replay">Replay action</button><button id="freshen">Freshen up</button><button id="restore">Restore workshop look</button></div>
+<a href="/pawns.html">Edit all appearance options ↗</a>
+</aside>
+<div class="content">
+<section class="panel"><div class="section-title"><div><p class="eyebrow">CARDS AT AN ISOMETRIC TABLE</p><h2>Try a shop action</h2></div><div class="buttons"><button id="pause">Pause</button><button id="step">Step frame →</button></div></div>
+<canvas id="stage" width="960" height="540" aria-label="Two characters holding and playing cards at an isometric table"></canvas>
+<p class="hint">WASD / arrows: move your character and stand up. Change facing or posture to return to the table. Actions show intent; the game owns the rules.</p>
+<p id="action-status" class="hint" aria-live="polite"></p>
+<div id="reactions" class="reactions" aria-label="Reaction bubbles"></div></section>
+<section class="panel"><div class="section-title"><div><p class="eyebrow">ATTACHMENTS + DEPTH</p><h2>Every direction</h2></div><span class="hint">Same action, status, and proportions</span></div><button id="verify" disabled>Check actions and attachments</button><p id="verify-status" class="hint"></p><div id="angles" class="gallery"></div><p id="cache" class="hint"></p></section>
+<section class="panel"><div class="section-title"><div><p class="eyebrow">CROWD TEST</p><h2>Active characters</h2></div><button id="crowd-toggle" disabled>Start crowd test</button></div><label class="hint">Unique looks <select id="crowd-count"><option>100</option><option>500</option><option selected>1000</option></select></label> <label class="hint">Render scale <select id="crowd-scale"><option value="1">1× · native 64 × 80</option><option value="2">2× · 128 × 160</option></select></label><label class="hint">Facing <select id="crowd-facing"><option value="current">Keep current view</option><option value="all">Turn through all 8 views</option></select></label><canvas id="crowd" width="960" height="540" aria-label="Character actions crowd benchmark"></canvas><p id="crowd-status" class="hint">Mixed card actions, reaction bubbles, and stink effects. Warm only current facings, or stress-test all eight.</p></section>
+</div>
+</main><script type="module" src="/characters.js"></script>
+</body></html>

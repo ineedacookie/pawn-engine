@@ -106,7 +106,7 @@ test("warm-up counts shared faces in capacity and validates state and lifetime",
   const pawns = Array.from({ length: 16 }, (_, i) => renderer.prepare({ proportions: { head: .85 + i * .01 } }));
   await assert.rejects(renderer.warm(pawns.map(pawn => ({ pawn, directions: DIRECTIONS }))), /capacity/);
   assert.equal(renderer.stats().builds, 0);
-  for (const expression of ["invalid", "constructor", "__proto__"]) assert.throws(() => renderer.draw(ctx, pawns[0], { x: 0, y: 0, expression }), /Unsupported expression/);
+  for (const expression of ["invalid", "constructor", "__proto__", null]) assert.throws(() => renderer.draw(ctx, pawns[0], { x: 0, y: 0, expression }), /Unsupported expression/);
   assert.throws(() => renderer.draw(ctx, pawns[0], { direction: "constructor" }), /Unsupported direction/);
   await assert.rejects(renderer.warm([{ pawn: pawns[0], directions: ["invalid"] }]), /direction/);
   await assert.rejects(renderer.warm([{ pawn: pawns[0] }], { budgetMs: 0 }), /budget/);
