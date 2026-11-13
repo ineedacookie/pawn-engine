@@ -34,6 +34,7 @@ await renderer.warm([{ pawn, directions: DIRECTIONS }]);
 // Inside your render loop; progress is the animation cycle fraction.
 renderer.draw(context, pawn, {
   x: 100, y: 150, direction: "south-east", state: "walk", progress: 0.25,
+  expression: "excited", // Change per entity without preparing another look.
 });
 
 // On entity removal and scene shutdown, respectively:
@@ -41,29 +42,29 @@ renderer.release(pawn);
 renderer.dispose();
 ```
 
-Prepared handles share static direction poses in bounded texture pages. Idle/walk motion and floor shadows are composed while drawing. Prepare on appearance changes, warm before play, and cull offscreen pawns. The full 96-frame PNG atlas remains available for external engines.
+Prepared handles share static body poses and small masked expression sheets in one bounded texture pool. Faces are shared across wardrobe colors and proportions; reacting only selects another sprite crop. Idle/walk motion and floor shadows are composed while drawing. Prepare on appearance changes, warm before play, and cull offscreen pawns. The full 96-frame PNG atlas remains available for external engines.
 
 See [workshop and integration details](docs/usage.md) for cache ownership, memory budgets, appearance controls, and exports.
 
 ## Performance
 
-The workshop benchmarks 100, 500, or 1,000 distinct looks. Recorded local Chrome/macOS arm64 samples:
+The workshop benchmarks 100, 500, or 1,000 distinct looks with independent reactions. The stress mode changes every pawn's expression every frame and turns through all eight views. After warm-up, expression changes rebuild neither bodies nor faces.
 
-| Unique looks | Cached directions | FPS | Pose buffers |
-| --- | --- | --- | --- |
-| 500 | All eight | 120 | 80 MiB |
-| 1,000 | All eight | 101 | 157.5 MiB |
-| 1,000 | Current facing | 120 | 20 MiB |
+The default cache budget is 128 MiB. For 1,000 fully varied looks with all directions and expressions warm, use 192 MiB (about 189 MiB of allocated pixel buffers in the workshop). Face sheets are shared by hair/headgear/direction rather than duplicated per pawn or expression.
 
-These session measurements are not a device-independent guarantee. Pixel-buffer figures exclude browser/GPU copies and other game assets. No poses rebuilt after warm-up in these samples. Full details and limitations are in [benchmark.json](docs/benchmark.json).
+Recorded browser measurements and their limitations are in [benchmark.json](docs/benchmark.json). Pixel-buffer figures exclude browser/GPU copies and other game assets; benchmark your target hardware.
 
 ## Repository contents
 
 - `public/pawn-engine.js`: reusable engine and atlas export API.
 - `public/pawns.*`: interactive customization and movement sandbox.
-- `public/pawn-review.html`: wardrobe combinations, layer checks, profile checks, and runtime/export comparison.
+- `public/pawn-review.html` and `expression-checks.js`: wardrobe combinations, layer/profile checks, and expression alignment/occlusion checks against vector exports.
 - `tests/`: appearance, animation, atlas, cache, and standalone server checks. Cache tests use a stub canvas; visual checks run in a real browser.
 - `server.mjs`: local-only static workshop server.
+
+## API version
+
+Version 0.2 uses appearance schema 2. Expressions are a `draw()` or export option, never part of appearance. Legacy global rendering helpers, mutable JSON drawing, and version-1 migration support have been removed. See [usage](docs/usage.md) for the complete interface.
 
 ## Review policy
 

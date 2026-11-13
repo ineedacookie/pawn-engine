@@ -1,14 +1,82 @@
 {
+  "engineVersion": "0.2.0",
+  "recordedDate": "2026-11-13",
   "environment": {
     "platform": "macOS arm64",
     "browser": "Chrome 157.0.0.0",
     "cpuGpuModel": "not available in the filesystem sandbox",
-    "scope": "Crowd canvas in the live workshop; other workshop canvases also animate. Pose memory counts allocated RGBA pages and shared shadow, not total browser or GPU memory."
+    "scope": "Live workshop crowd canvas; other workshop canvases also animate. Memory counts body/face texture pages, the shared shadow, and reusable mask/raster buffers. It excludes browser/GPU copies and other game assets."
   },
   "samples": [
-    {"uniqueLooks":500,"allDirections":true,"fps":119.98,"p95DrawMs":3.7,"poseMemoryMiB":80.00390625,"warmUpMs":537,"poseBuildsAfterWarm":0,"evictions":0,"residentPoses":4000},
-    {"uniqueLooks":1000,"allDirections":true,"fps":100.99,"p95DrawMs":9.2,"poseMemoryMiB":157.50390625,"warmUpMs":735.5,"poseBuildsAfterWarm":0,"evictions":0,"residentPoses":8000},
-    {"uniqueLooks":1000,"allDirections":false,"fps":120.15,"p95DrawMs":3.3,"poseMemoryMiB":20.00390625,"warmUpMs":53.4,"poseBuildsAfterWarm":0,"evictions":0,"residentPoses":1000}
+    {
+      "uniqueLooks": 1000,
+      "allDirections": true,
+      "expressionMode": "every pawn, every frame",
+      "fps": 114.06466970838989,
+      "p95DrawMs": 9.4,
+      "poseMemoryMiB": 189.027587890625,
+      "warmUpMs": 1749.5,
+      "bodyBuildsAfterWarm": 0,
+      "faceBuildsAfterWarm": 0,
+      "evictions": 0,
+      "residentBodyPoses": 8000,
+      "sharedFaceSheets": 1120,
+      "expressionChanges": 4002000
+    }
   ],
-  "limitations": "Session snapshots, not a guarantee for other devices or a complete game's workload. Frames were real browser renders, not the stub canvas used in cache unit tests."
+  "verification": {
+    "standaloneTestsPassed": 21,
+    "workspaceTestsPassed": 95,
+    "expressionChecksPassed": 7224,
+    "expressionCases": 102,
+    "bodyComparisonsPassed": 4248,
+    "bodyProportions": [
+      "minimum",
+      "default",
+      "maximum"
+    ],
+    "spriteEdgeWarnings": 0,
+    "layerChecksPassed": 29,
+    "profileChecksPassed": 228
+  },
+  "historicalBaseline": {
+    "engineVersion": "0.1.0",
+    "expressions": "fixed per appearance; no reaction stress test",
+    "samples": [
+      {
+        "uniqueLooks": 500,
+        "allDirections": true,
+        "fps": 119.98,
+        "p95DrawMs": 3.7,
+        "poseMemoryMiB": 80.00390625,
+        "warmUpMs": 537,
+        "poseBuildsAfterWarm": 0,
+        "evictions": 0,
+        "residentPoses": 4000
+      },
+      {
+        "uniqueLooks": 1000,
+        "allDirections": true,
+        "fps": 100.99,
+        "p95DrawMs": 9.2,
+        "poseMemoryMiB": 157.50390625,
+        "warmUpMs": 735.5,
+        "poseBuildsAfterWarm": 0,
+        "evictions": 0,
+        "residentPoses": 8000
+      },
+      {
+        "uniqueLooks": 1000,
+        "allDirections": false,
+        "fps": 120.15,
+        "p95DrawMs": 3.3,
+        "poseMemoryMiB": 20.00390625,
+        "warmUpMs": 53.4,
+        "poseBuildsAfterWarm": 0,
+        "evictions": 0,
+        "residentPoses": 1000
+      }
+    ]
+  },
+  "limitations": "Browser session snapshot, not a guarantee for other devices or a complete game. CPU/GPU model was not available. FPS and draw time were measured with real browser renders; cache unit tests use a stub canvas. Draw time measures CPU command submission, not a GPU timer."
 }

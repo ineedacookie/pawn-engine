@@ -40,8 +40,9 @@ export function nearestPaletteColor(value) {
   for(const swatch of PAWN_PALETTE){const score=rgb(swatch.color).reduce((sum,channel,index)=>sum+(channel-input[index])**2,0);if(score<distance){distance=score;best=swatch.color;}}
   return best;
 }
-export const PAWN_DEFAULTS = Object.freeze({ version: 1, colors: { skin: "#e7b28e", hair: "#533b37", clothes: "#79a76b", accent: "#f0ca67", shoes: "#684b44", bag: "#a77250", metal: "#a9bbc3" }, expression: "happy", hair: "short", outfit: "tunic", hat: "none", bag: "none", back: "none", belt: "none", proportions: { height: 1, head: 1, width: 1 } });
-export const PAWN_OPTIONS = Object.freeze({ expression: ["happy", "neutral", "excited", "sleepy", "surprised"], hair: ["bald", "short", "sidepart", "pixie", "bob", "long", "wavy", "curly", "bun", "ponytail", "braid", "undercut", "mohawk", "spiky"], outfit: ["tunic", "sweater", "hoodie", "cardigan", "dress", "overalls", "robe", "armor", "chainmail", "monk", "ranger", "tabard"], hat: ["none", "beanie", "beret", "fedora", "sunhat", "hood", "helmet", "greathelm", "wizard", "rangerhood", "circlet", "flower", "bow", "laurel", "crown", "goggles", "bandana"], bag: ["none", "shoulder", "backpack", "pouch", "tote"], back: ["none", "quiver", "sword", "shield", "staff", "bow", "lute"], belt: ["none", "sword", "dagger", "potions", "scroll", "book"] });
+export const EXPRESSIONS = Object.freeze(["happy", "neutral", "excited", "sleepy", "surprised"]);
+export const PAWN_DEFAULTS = Object.freeze({ version: 2, colors: { skin: "#e7b28e", hair: "#533b37", clothes: "#79a76b", accent: "#f0ca67", bag: "#a77250", metal: "#a9bbc3" }, hair: "short", outfit: "tunic", hat: "none", bag: "none", back: "none", belt: "none", proportions: { height: 1, head: 1, width: 1 } });
+export const PAWN_OPTIONS = Object.freeze({ hair: ["bald", "short", "sidepart", "pixie", "bob", "long", "wavy", "curly", "bun", "ponytail", "braid", "undercut", "mohawk", "spiky"], outfit: ["tunic", "sweater", "hoodie", "cardigan", "dress", "overalls", "robe", "armor", "chainmail", "monk", "ranger", "tabard"], hat: ["none", "beanie", "beret", "fedora", "sunhat", "hood", "helmet", "greathelm", "wizard", "rangerhood", "circlet", "flower", "bow", "laurel", "crown", "goggles", "bandana"], bag: ["none", "shoulder", "backpack", "pouch", "tote"], back: ["none", "quiver", "sword", "shield", "staff", "bow", "lute"], belt: ["none", "sword", "dagger", "potions", "scroll", "book"] });
 export const CLASS_PRESETS = Object.freeze({
   warrior: {outfit:"armor",hat:"none",back:"sword",belt:"dagger",bag:"none",colors:{clothes:"#9c624d",accent:"#c88768",metal:"#a48ab8"}},
   knight: {outfit:"tabard",hat:"greathelm",back:"shield",belt:"sword",bag:"none",colors:{clothes:"#8575b1",accent:"#f0ca67",metal:"#a9bbc3"}},
@@ -56,10 +57,11 @@ export const CLASS_PRESETS = Object.freeze({
 
 export function normalizeAppearance(input = {}) {
   if (!input || typeof input !== "object" || Array.isArray(input)) throw new Error("Appearance must be a JSON object.");
-  if (input.version !== undefined && input.version !== 1) throw new Error("Unsupported appearance version; expected version 1.");
+  if (input.version !== undefined && input.version !== 2) throw new Error("Unsupported appearance version; expected version 2.");
+  if (input.expression !== undefined) throw new Error("Pass expression to draw() or atlas export options, not appearance.");
   const out = structuredClone(PAWN_DEFAULTS);
   for (const part of Object.keys(PAWN_OPTIONS)) if (input[part] !== undefined) {
-    const value = part === "hair" && input[part] === "braids" ? "braid" : input[part];
+    const value = input[part];
     if (!PAWN_OPTIONS[part].includes(value)) throw new Error(`Unsupported ${part}: ${input[part]}.`);
     out[part] = value;
   }
@@ -76,7 +78,7 @@ export function directionFromVector(x, y, fallback = "south") {
   return DIRECTIONS[Math.round((-Math.atan2(x, y) / (Math.PI / 4) + 8) % 8) % 8];
 }
 export function frameIndex(state, progress = 0) {
-  const spec = ANIMATION[state]; if (!spec) throw new Error(`Unsupported animation state: ${state}.`);
+  const spec = Object.hasOwn(ANIMATION, state) && ANIMATION[state]; if (!spec) throw new Error(`Unsupported animation state: ${state}.`);
   return Math.floor(Math.max(0, Number(progress) || 0) * spec.frames) % spec.frames;
 }
 function roundRect(ctx, x, y, w, h, r, fill, stroke = "#000000", line = 1.8) {
@@ -84,9 +86,19 @@ function roundRect(ctx, x, y, w, h, r, fill, stroke = "#000000", line = 1.8) {
 }
 function capsule(ctx, x, y, w, h, color) { ctx.beginPath(); ctx.ellipse(x, y, w, h, 0, 0, Math.PI * 2); ctx.fillStyle = color; ctx.fill(); ctx.strokeStyle = PAWN_OUTLINE; ctx.lineWidth = 1.5; ctx.stroke(); }
 // Wardrobe uses rounded silhouettes and sparse seams, like the concept illustration.
-function shape(ctx, color, path, line = 1.4) {
-  ctx.beginPath(); path(ctx); ctx.closePath(); ctx.fillStyle = color; ctx.fill();
+function shape(ctx, color, path, line = 1.4, opening = null) {
+  ctx.beginPath(); path(ctx); ctx.closePath();
+  ctx.save();
+  if (opening) {
+    // Subtract the opening from the silhouette, including where the opening
+    // extends past its edge. Even-odd fill alone would add those outside areas.
+    ctx.clip();
+    const [x, y, rx, ry] = opening;
+    ctx.moveTo(x + rx, y); ctx.ellipse(x, y, rx, ry, 0, 0, Math.PI * 2);
+  }
+  ctx.fillStyle = color; ctx.fill(opening ? "evenodd" : "nonzero");
   ctx.strokeStyle = PAWN_OUTLINE; ctx.lineWidth = line; ctx.lineJoin = "round"; ctx.stroke();
+  ctx.restore();
 }
 function seam(ctx, path, color = "#000000", width = 1) {
   ctx.beginPath(); path(ctx); ctx.lineCap = "round";
@@ -268,9 +280,8 @@ function drawHat(ctx, a, side, rear, profile) {
     return;
   }
   if (["helmet","greathelm"].includes(a.hat)) {
-    shape(ctx,a.colors.metal,c=>{c.moveTo(-14,8);c.lineTo(-14,-5);c.bezierCurveTo(-12,-19,12,-19,14,-5);c.lineTo(14,8);c.quadraticCurveTo(0,13,-14,8);});
+    shape(ctx,a.colors.metal,c=>{c.moveTo(-14,8);c.lineTo(-14,-5);c.bezierCurveTo(-12,-19,12,-19,14,-5);c.lineTo(14,8);c.quadraticCurveTo(0,13,-14,8);},1.4,!rear && a.hat === "helmet" ? [side*(profile?7:2),2,profile?6:11,10] : null);
     if (!rear && a.hat === "helmet") {
-      capsule(ctx,side*(profile?7:2),2,profile?6:11,10,a.colors.skin);
       seam(ctx,c=>{c.moveTo(side*2,-8);c.lineTo(side*2,-2);},a.colors.metal,3);
     } else if (!rear) {
       seam(ctx,c=>{c.moveTo(profile?side*5:-10,0);c.quadraticCurveTo(side*8,2,profile?side*13:11,0);},"#000000",2.6);
@@ -292,8 +303,7 @@ function drawHat(ctx, a, side, rear, profile) {
     return;
   }
   if (a.hat === "hood" || a.hat === "rangerhood") {
-    shape(ctx,color,c=>{c.moveTo(-13,7);c.bezierCurveTo(-21,-17,10,-22,15,-3);c.lineTo(14,11);c.quadraticCurveTo(0,16,-13,7);});
-    if (!rear) { capsule(ctx, side*(profile?7:3), 1, profile?6:10, 12, a.colors.skin); }
+    shape(ctx,color,c=>{c.moveTo(-13,7);c.bezierCurveTo(-21,-17,10,-22,15,-3);c.lineTo(14,11);c.quadraticCurveTo(0,16,-13,7);},1.4,!rear ? [side*(profile?7:3),1,profile?6:10,12] : null);
     return;
   }
   if (a.hat === "beanie") {
@@ -439,7 +449,51 @@ function drawEquipment(ctx,a,side,rear,profile,behind) {
   else {roundRect(ctx,-4,-3,8,12,1.5,c.clothes);seam(ctx,p=>{p.moveTo(-2,-2);p.lineTo(-2,8);},c.accent,1);}
   ctx.restore();
 }
-function paintPawn(ctx, a, direction, state, frame, includeShadow = true) {
+function paintHeadwear(ctx, a, direction) {
+  const side = direction.includes("east") ? 1 : direction.includes("west") ? -1 : 0;
+  const rear = direction.startsWith("north"), profile = direction === "east" || direction === "west";
+  drawHair(ctx, a, side, rear, false, profile);
+  ctx.save();
+  if (profile) ctx.scale(side, 1); else if (rear) ctx.scale(-1, 1);
+  if (a.hat !== "hood") { ctx.translate(0, -1.5); ctx.scale(1, .9); }
+  drawHat(ctx, a, profile ? 1 : side, rear, profile);
+  ctx.restore();
+}
+function paintFace(ctx, expression, direction) {
+  const side = direction.includes("east") ? 1 : direction.includes("west") ? -1 : 0;
+  const profile = direction === "east" || direction === "west";
+  ctx.save(); ctx.translate(0, 49);
+  const eye = (x, y, r = 1.8) => {
+    ctx.fillStyle = "#000000"; ctx.strokeStyle = PAWN_OUTLINE; ctx.lineWidth = 1.35; ctx.lineCap = "round";
+    ctx.beginPath();
+    if (expression === "excited") {
+      ctx.moveTo(x-r, y+.4); ctx.quadraticCurveTo(x, y-2.5, x+r, y+.4); ctx.stroke();
+    } else if (expression === "sleepy") {
+      ctx.moveTo(x-r, y); ctx.quadraticCurveTo(x, y+1.4, x+r, y); ctx.stroke();
+    } else {
+      ctx.ellipse(x, y, r, r * 1.12, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = "rgba(255,248,229,.9)"; ctx.beginPath(); ctx.arc(x-r*.27, y-r*.35, r*.25, 0, Math.PI*2); ctx.fill();
+    }
+  };
+  // The reference places the near eye low on the cheek and the far eye
+  // higher around the sphere. Keep this projection consistent on both sides.
+  if (profile) eye(side * 7.4, -46.2, 1.65);
+  else if (side) { eye(side * .5, -45.5); eye(side * 8.2, -47.5, 1.35); }
+  else { eye(-4.8, -46); eye(4.8, -46); }
+  const mx = side * (profile ? 8.7 : 4.8), my = profile ? -42 : -41.5;
+  ctx.save(); ctx.translate(mx, my); ctx.scale(profile ? .55 : 1, 1);
+  ctx.strokeStyle = PAWN_OUTLINE; ctx.fillStyle = "#000000"; ctx.lineWidth = 1.2; ctx.lineCap = "round"; ctx.beginPath();
+  if (expression === "surprised") { ctx.ellipse(0, .4, 1.6, 2, 0, 0, Math.PI*2); ctx.fill(); }
+  else if (expression === "excited") {
+    ctx.moveTo(-2.8, -.3); ctx.quadraticCurveTo(0, .7, 2.8, -.3); ctx.quadraticCurveTo(2.2, 4.8, 0, 4.5); ctx.quadraticCurveTo(-2.2, 4.8, -2.8, -.3); ctx.fill();
+    ctx.fillStyle = "#e48378"; ctx.beginPath(); ctx.ellipse(0, 3.1, 1.4, .8, 0, 0, Math.PI*2); ctx.fill();
+  } else if (expression === "neutral") { ctx.moveTo(-1.6, .7); ctx.lineTo(1.6, .7); ctx.stroke(); }
+  else if (expression === "sleepy") { ctx.ellipse(0, 1, 1.2, .65, 0, 0, Math.PI*2); ctx.stroke(); }
+  else { ctx.moveTo(-2.1, 0); ctx.quadraticCurveTo(0, 3, 2.1, 0); ctx.stroke(); }
+  ctx.restore();
+  ctx.restore();
+}
+function paintPawn(ctx, a, direction, state, frame, includeShadow = true, expression = null) {
   const walk = state === "walk", p = frame / (walk ? 8 : 4), bob = walk ? Math.abs(Math.sin(p * Math.PI * 2)) * 1.1 : Math.sin(p * Math.PI * 2) * .5;
   if (!DIRECTIONS.includes(direction)) throw new Error(`Unsupported direction: ${direction}.`);
   const c = a.colors, { height, head, width } = a.proportions;
@@ -493,146 +547,252 @@ function paintPawn(ctx, a, direction, state, frame, includeShadow = true) {
   headShade.addColorStop(1, "rgba(89,44,32,.1)");
   ctx.fillStyle = headShade; ctx.beginPath(); ctx.arc(0, -49, hr - .8, 0, Math.PI * 2); ctx.fill();
   ctx.save(); ctx.translate(0,-49); ctx.scale(head,head);
-  drawHair(ctx,a,side,rear,false,profile);
-  ctx.save(); if (profile) ctx.scale(side,1); else if (rear) ctx.scale(-1,1);
-  if (a.hat !== "hood") { ctx.translate(0,-1.5); ctx.scale(1,.9); }
-  drawHat(ctx,a,profile?1:side,rear,profile); ctx.restore(); ctx.restore();
-  if (!rear && a.hat !== "greathelm") {
-    ctx.save(); ctx.translate(0, -49); ctx.scale(head, head); ctx.translate(0, 49);
-    const profile = direction === "west" || direction === "east";
-    const eye = (x, y, r = 1.8) => {
-      ctx.fillStyle = "#000000"; ctx.strokeStyle = PAWN_OUTLINE; ctx.lineWidth = 1.35; ctx.lineCap = "round";
-      ctx.beginPath();
-      if (a.expression === "excited") {
-        ctx.moveTo(x-r, y+.4); ctx.quadraticCurveTo(x, y-2.5, x+r, y+.4); ctx.stroke();
-      } else if (a.expression === "sleepy") {
-        ctx.moveTo(x-r, y); ctx.quadraticCurveTo(x, y+1.4, x+r, y); ctx.stroke();
-      } else {
-        ctx.ellipse(x, y, r, r * 1.12, 0, 0, Math.PI * 2); ctx.fill();
-        ctx.fillStyle = "rgba(255,248,229,.9)"; ctx.beginPath(); ctx.arc(x-r*.27, y-r*.35, r*.25, 0, Math.PI*2); ctx.fill();
-      }
-    };
-    // The reference places the near eye low on the cheek and the far eye
-    // higher around the sphere. Keep this projection consistent on both sides.
-    if (profile) eye(side * 7.4, -46.2, 1.65);
-    else if (side) { eye(side * .5, -45.5); eye(side * 8.2, -47.5, 1.35); }
-    else { eye(-4.8, -46); eye(4.8, -46); }
-    const mx = side * (profile ? 8.7 : 4.8), my = profile ? -42 : -41.5;
-    ctx.save(); ctx.translate(mx, my); ctx.scale(profile ? .55 : 1, 1);
-    ctx.strokeStyle = PAWN_OUTLINE; ctx.fillStyle = "#000000"; ctx.lineWidth = 1.2; ctx.lineCap = "round"; ctx.beginPath();
-    if (a.expression === "surprised") { ctx.ellipse(0, .4, 1.6, 2, 0, 0, Math.PI*2); ctx.fill(); }
-    else if (a.expression === "excited") {
-      ctx.moveTo(-2.8, -.3); ctx.quadraticCurveTo(0, .7, 2.8, -.3); ctx.quadraticCurveTo(2.2, 4.8, 0, 4.5); ctx.quadraticCurveTo(-2.2, 4.8, -2.8, -.3); ctx.fill();
-      ctx.fillStyle = "#e48378"; ctx.beginPath(); ctx.ellipse(0, 3.1, 1.4, .8, 0, 0, Math.PI*2); ctx.fill();
-    } else if (a.expression === "neutral") { ctx.moveTo(-1.6, .7); ctx.lineTo(1.6, .7); ctx.stroke(); }
-    else if (a.expression === "sleepy") { ctx.ellipse(0, 1, 1.2, .65, 0, 0, Math.PI*2); ctx.stroke(); }
-    else { ctx.moveTo(-2.1, 0); ctx.quadraticCurveTo(0, 3, 2.1, 0); ctx.stroke(); }
-    ctx.restore();
-    ctx.restore();
-  }
+  if (expression !== null && !rear && a.hat !== "greathelm") paintFace(ctx, expression, direction);
+  paintHeadwear(ctx, a, direction); ctx.restore();
   ctx.restore(); ctx.restore();
 }
 function canvasFor(width, height) { const c = document.createElement("canvas"); c.width = width; c.height = height; return c; }
-function makeAtlas(appearance, scale = 1) {
-  const w = FRAME_WIDTH * scale, h = FRAME_HEIGHT * scale, atlas = canvasFor(w * 12, h * 8), ctx = atlas.getContext("2d");
-  ctx.scale(scale, scale);
-  DIRECTIONS.forEach((dir, row) => { for (let f = 0; f < 12; f++) { ctx.save(); ctx.translate(f * FRAME_WIDTH, row * FRAME_HEIGHT); paintPawn(ctx, appearance, dir, f < 4 ? "idle" : "walk", f < 4 ? f : f - 4); ctx.restore(); } });
+function makeAtlas(appearance, scale, expression) {
+  const w = FRAME_WIDTH * scale, h = FRAME_HEIGHT * scale;
+  const atlas = canvasFor(w * 12, h * 8), ctx = atlas.getContext("2d");
+  const frame = canvasFor(w, h), drawing = frame.getContext("2d");
+  drawing.scale(scale, scale);
+  // Rasterize at a fixed origin: packing coordinates must not change geometry
+  // or antialiasing, particularly for scaled hood/helmet clipping paths.
+  DIRECTIONS.forEach((direction, row) => {
+    for (let index = 0; index < 12; index++) {
+      drawing.clearRect(0, 0, FRAME_WIDTH, FRAME_HEIGHT);
+      paintPawn(drawing, appearance, direction, index < 4 ? "idle" : "walk", index < 4 ? index : index - 4, true, expression);
+      ctx.drawImage(frame, index * w, row * h);
+    }
+  });
+  frame.width = frame.height = 0;
   return atlas;
 }
-// Runtime poses are packed into shared pages. Idle/walk differ only by body
-// translation, so both animations reuse the same eight direction poses.
-const PAGE_COLUMNS = 16, PAGE_ROWS = 8;
-const PAGE_BYTES = FRAME_WIDTH * PAGE_COLUMNS * FRAME_HEIGHT * PAGE_ROWS * 4;
-const SHADOW_BYTES = 64 * 16 * 4;
-const DIRECTION_INDEX = Object.fromEntries(DIRECTIONS.map((direction,index)=>[direction,index]));
-export function createPawnRenderer({ maxCacheBytes = 96 * 1024 * 1024 } = {}) {
-  if(!Number.isSafeInteger(maxCacheBytes) || maxCacheBytes < PAGE_BYTES + SHADOW_BYTES) throw new Error("The pose cache needs at least one page plus its shadow (2.51 MiB).");
-  const maxPages = Math.floor((maxCacheBytes-SHADOW_BYTES)/PAGE_BYTES);
-  const records = new Map(), leases = new WeakMap(), pages = [], free = [];
-  let first=null,last=null,shadow=null,closed=false,revision=0,nextId=0;
-  let builds=0,hits=0,misses=0,evictions=0,poses=0,preparations=0;
-  function assertOpen(){if(closed)throw new Error("Pawn renderer has been disposed.");}
-  function recordFor(input){
-    const appearance=normalizeAppearance(input), key=JSON.stringify(appearance);
-    let record=records.get(key);
-    if(!record){Object.freeze(appearance.colors);Object.freeze(appearance.proportions);Object.freeze(appearance);record={key,appearance,id:nextId++,refs:0,slots:Array(8).fill(null)};records.set(key,record);}
-    return record;
+// Bodies and shared face sheets use one bounded LRU page pool. Each face
+// sheet holds all expressions for a hair/hat/direction, independent of colors,
+// body proportions, or entity count. Switching expression only changes a crop.
+const PAGE_COLUMNS = 16, PAGE_ROWS = 8, SLOT_HEIGHT = 84;
+const PAGE_BYTES = FRAME_WIDTH * PAGE_COLUMNS * SLOT_HEIGHT * PAGE_ROWS * 4;
+const SHADOW_BYTES = 64 * 16 * 4, MASK_BYTES = 32 * 26 * 4, RASTER_BYTES = FRAME_WIDTH * SLOT_HEIGHT * 4;
+const DIRECTION_INDEX = Object.fromEntries(DIRECTIONS.map((value, index) => [value, index]));
+const EXPRESSION_INDEX = Object.fromEntries(EXPRESSIONS.map((value, index) => [value, index]));
+const FACE_VISIBLE = [true, true, true, false, false, false, true, true];
+const SIDE = [0, -1, -1, -1, 0, 1, 1, 1];
+// A direction-specific 16×13 head-space window fits five double-resolution
+// expressions into one 64×84 slot. Two blank rows between sprites prevent
+// adjacent expressions bleeding into one another during filtered drawing.
+const FACE_X = [-8, -13, -16, 0, 0, 0, 0, -3];
+function expressionIndex(expression) {
+  const index = EXPRESSION_INDEX[expression];
+  if (!Number.isInteger(index)) throw new Error(`Unsupported expression: ${expression}.`);
+  return index;
+}
+
+export function createPawnRenderer({ maxCacheBytes = 128 * 1024 * 1024 } = {}) {
+  if (!Number.isSafeInteger(maxCacheBytes) || maxCacheBytes < PAGE_BYTES + SHADOW_BYTES + MASK_BYTES + RASTER_BYTES)
+    throw new Error("The cache needs at least one page and raster buffers (2.66 MiB).");
+  const maxPages = Math.floor((maxCacheBytes - SHADOW_BYTES - MASK_BYTES - RASTER_BYTES) / PAGE_BYTES);
+  const records = new Map(), styles = new Map(), leases = new WeakMap(), pages = [], free = [];
+  let first = null, last = null, shadow = null, mask = null, raster = null, closed = false, revision = 0, nextId = 0;
+  let builds = 0, faceBuilds = 0, hits = 0, misses = 0, evictions = 0, poses = 0, faceSheets = 0, preparations = 0;
+  function assertOpen() { if (closed) throw new Error("Pawn renderer has been disposed."); }
+  function owner(appearance, face = false) {
+    return { appearance, face, id: nextId++, refs: 0, slots: Array(8).fill(null) };
   }
-  function leaseFor(pawn){const lease=leases.get(pawn);if(!lease || lease.released)throw new Error("Use a live pawn prepared by this renderer.");return lease;}
-  function unlink(slot){if(slot.prev)slot.prev.next=slot.next;else first=slot.next;if(slot.next)slot.next.prev=slot.prev;else last=slot.prev;slot.prev=null;slot.next=null;}
-  function touch(slot){if(slot===last)return;if(slot.owner)unlink(slot);slot.prev=last;if(last)last.next=slot;else first=slot;last=slot;}
-  function forget(slot){
-    const owner=slot.owner;unlink(slot);owner.slots[slot.direction]=null;slot.owner=null;poses--;
-    if(owner.refs===0 && !owner.slots.some(Boolean))records.delete(owner.key);
+  function leaseFor(pawn) {
+    const lease = leases.get(pawn);
+    if (!lease || lease.released) throw new Error("Use a live pawn prepared by this renderer.");
+    return lease;
   }
-  function newPage(){
-    const canvas=canvasFor(FRAME_WIDTH*PAGE_COLUMNS,FRAME_HEIGHT*PAGE_ROWS),ctx=canvas.getContext("2d");
-    const page={canvas,ctx};pages.push(page);
-    for(let i=0;i<PAGE_COLUMNS*PAGE_ROWS;i++)free.push({page,x:i%PAGE_COLUMNS*FRAME_WIDTH,y:Math.floor(i/PAGE_COLUMNS)*FRAME_HEIGHT,owner:null,prev:null,next:null,direction:0});
+  function unlink(slot) {
+    if (slot.prev) slot.prev.next = slot.next; else first = slot.next;
+    if (slot.next) slot.next.prev = slot.prev; else last = slot.prev;
+    slot.prev = slot.next = null;
   }
-  function poseFor(record,direction){
-    let slot=record.slots[direction];
-    if(slot){hits++;touch(slot);return slot;}
+  function touch(slot) {
+    if (slot === last) return;
+    if (slot.owner) unlink(slot);
+    slot.prev = last;
+    if (last) last.next = slot; else first = slot;
+    last = slot;
+  }
+  function forget(slot) {
+    unlink(slot); slot.owner.slots[slot.direction] = null;
+    if (slot.owner.face) faceSheets--; else poses--;
+    slot.owner = null;
+  }
+  function freeOwner(record) {
+    for (const slot of record.slots) if (slot) { forget(slot); free.push(slot); }
+  }
+  function newPage() {
+    const canvas = canvasFor(FRAME_WIDTH * PAGE_COLUMNS, SLOT_HEIGHT * PAGE_ROWS);
+    const page = { canvas, ctx: canvas.getContext("2d") }; pages.push(page);
+    for (let i = 0; i < PAGE_COLUMNS * PAGE_ROWS; i++)
+      free.push({ page, x: i % PAGE_COLUMNS * FRAME_WIDTH, y: Math.floor(i / PAGE_COLUMNS) * SLOT_HEIGHT, owner: null, prev: null, next: null, direction: 0 });
+  }
+  function paintFaces(ctx, a, direction) {
+    const left = FACE_X[DIRECTION_INDEX[direction]];
+    if (!mask) mask = canvasFor(32, 26);
+    const occlusion = mask.getContext("2d");
+    occlusion.clearRect(0, 0, 32, 26);
+    occlusion.save(); occlusion.scale(2, 2); occlusion.translate(-left, .5);
+    paintHeadwear(occlusion, a, direction); occlusion.restore();
+    for (const [index, expression] of EXPRESSIONS.entries()) {
+      ctx.save(); ctx.translate(index % 2 * 32, Math.floor(index / 2) * 28);
+      ctx.beginPath(); ctx.rect(0, 0, 32, 26); ctx.clip();
+      ctx.save(); ctx.scale(2, 2); ctx.translate(-left, .5);
+      paintFace(ctx, expression, direction); ctx.restore();
+      ctx.globalCompositeOperation = "destination-out";
+      ctx.drawImage(mask, 0, 0); ctx.restore();
+    }
+  }
+  function poseFor(record, direction) {
+    let slot = record.slots[direction];
+    if (slot) { hits++; touch(slot); return slot; }
     misses++;
-    if(!free.length){if(pages.length<maxPages)newPage();else{slot=first;forget(slot);free.push(slot);evictions++;}}
-    slot=free.pop();
-    const ctx=slot.page.ctx;
-    ctx.save();ctx.beginPath();ctx.rect(slot.x,slot.y,FRAME_WIDTH,FRAME_HEIGHT);ctx.clip();ctx.clearRect(slot.x,slot.y,FRAME_WIDTH,FRAME_HEIGHT);ctx.translate(slot.x,slot.y);
-    try{paintPawn(ctx,record.appearance,DIRECTIONS[direction],"idle",0,false);}catch(error){free.push(slot);throw error;}finally{ctx.restore();}
-    // An unleased legacy record may have lost its last pose during eviction.
-    records.set(record.key,record);slot.direction=direction;touch(slot);slot.owner=record;record.slots[direction]=slot;poses++;builds++;
+    if (!free.length) {
+      if (pages.length < maxPages) newPage();
+      else { slot = first; forget(slot); free.push(slot); evictions++; }
+    }
+    slot = free.pop();
+    if (!raster) raster = canvasFor(FRAME_WIDTH, SLOT_HEIGHT);
+    const drawing = raster.getContext("2d"), ctx = slot.page.ctx;
+    drawing.clearRect(0, 0, FRAME_WIDTH, SLOT_HEIGHT);
+    try {
+      if (record.face) paintFaces(drawing, record.appearance, DIRECTIONS[direction]);
+      else paintPawn(drawing, record.appearance, DIRECTIONS[direction], "idle", 0, false);
+      ctx.clearRect(slot.x, slot.y, FRAME_WIDTH, SLOT_HEIGHT);
+      ctx.drawImage(raster, slot.x, slot.y);
+    } catch (error) { free.push(slot); throw error; }
+    touch(slot); slot.owner = record; slot.direction = direction; record.slots[direction] = slot;
+    if (record.face) { faceSheets++; faceBuilds++; } else { poses++; builds++; }
     return slot;
   }
-  function shadowImage(){
-    if(!shadow){shadow=canvasFor(64,16);const ctx=shadow.getContext("2d");ctx.fillStyle="rgba(71,49,43,.2)";ctx.beginPath();ctx.ellipse(32,8,12,3.7,0,0,Math.PI*2);ctx.fill();}
+  function shadowImage() {
+    if (!shadow) {
+      shadow = canvasFor(64, 16); const ctx = shadow.getContext("2d");
+      ctx.fillStyle = "rgba(71,49,43,.2)"; ctx.beginPath(); ctx.ellipse(32, 8, 12, 3.7, 0, 0, Math.PI * 2); ctx.fill();
+    }
     return shadow;
   }
-  function drawRecord(ctx,record,{x,y,direction="south",state="idle",progress=0,shadow:showShadow=true}={}){
-    const index=DIRECTION_INDEX[direction];if(!Number.isInteger(index))throw new Error(`Unsupported direction: ${direction}.`);
-    const frame=frameIndex(state,progress),slot=poseFor(record,index),a=record.appearance;
-    if(showShadow){const sx=a.proportions.width**2*((direction==="east"||direction==="west")?.84:1),sy=a.proportions.height;ctx.drawImage(shadowImage(),x-32*sx,y-8*sy,64*sx,16*sy);}
-    const phase=frame/ANIMATION[state].frames*Math.PI*2;
-    const bob=(state==="walk"?Math.abs(Math.sin(phase))*1.1:Math.sin(phase)*.5)*a.proportions.height;
-    ctx.drawImage(slot.page.canvas,slot.x,slot.y,FRAME_WIDTH,FRAME_HEIGHT,Math.round(x-32),Math.round(y-72)-bob,FRAME_WIDTH,FRAME_HEIGHT);
-  }
   return {
-    prepare(input={}){assertOpen();preparations++;const record=recordFor(input),pawn=Object.freeze({appearance:record.appearance});record.refs++;leases.set(pawn,{record,released:false});return pawn;},
-    draw(ctx,pawn,options){assertOpen();drawRecord(ctx,leaseFor(pawn).record,options);},
-    // Compatibility path for mutable appearance objects. Games should prepare once.
-    drawAppearance(ctx,input,options){assertOpen();drawRecord(ctx,recordFor(input),options);},
-    async warm(requests,{budgetMs=4,signal,onProgress}={}){
-      assertOpen();if(!Number.isFinite(budgetMs)||budgetMs<=0)throw new Error("Warm-up budget must be a positive number of milliseconds.");
-      const tasks=[],seen=new Set(),startRevision=revision;
-      for(const request of requests){const pawn=request.pawn??request,lease=leaseFor(pawn);for(const direction of request.directions??["south"]){const index=DIRECTION_INDEX[direction];if(!Number.isInteger(index))throw new Error(`Unsupported direction: ${direction}.`);const key=lease.record.id*8+index;if(!seen.has(key)){seen.add(key);tasks.push({lease,index});}}}
-      if(tasks.length>maxPages*PAGE_COLUMNS*PAGE_ROWS)throw new Error("Warm-up exceeds pose-cache capacity. Increase maxCacheBytes or warm fewer directions.");
-      let sliceStart=performance.now();
-      for(let i=0;i<tasks.length;i++){
-        if(signal?.aborted)throw new DOMException("Pawn warm-up aborted.","AbortError");
-        assertOpen();if(revision!==startRevision)throw new Error("Pawn cache changed during warm-up.");
-        const {lease,index}=tasks[i];if(lease.released)throw new Error("Pawn was released during warm-up.");poseFor(lease.record,index);
-        if(performance.now()-sliceStart>=budgetMs && i+1<tasks.length){onProgress?.({completed:i+1,total:tasks.length});await new Promise(resolve=>setTimeout(resolve,0));sliceStart=performance.now();}
+    prepare(input = {}) {
+      assertOpen(); const appearance = normalizeAppearance(input), key = JSON.stringify(appearance);
+      preparations++;
+      let record = records.get(key);
+      if (!record) {
+        Object.freeze(appearance.colors); Object.freeze(appearance.proportions); Object.freeze(appearance);
+        record = owner(appearance); record.key = key;
+        // Only hair and headgear affect face visibility; head size is applied on draw.
+        record.styleKey = PAWN_OPTIONS.hair.indexOf(appearance.hair) * PAWN_OPTIONS.hat.length + PAWN_OPTIONS.hat.indexOf(appearance.hat);
+        let style = styles.get(record.styleKey);
+        if (!style) { style = owner(appearance, true); styles.set(record.styleKey, style); }
+        style.refs++; record.style = style; records.set(key, record);
       }
-      onProgress?.({completed:tasks.length,total:tasks.length});return this.stats();
+      record.refs++;
+      const pawn = Object.freeze({ appearance: record.appearance });
+      leases.set(pawn, { record, released: false }); return pawn;
     },
-    release(pawn){assertOpen();const lease=leases.get(pawn);if(!lease||lease.released)return;lease.released=true;const record=lease.record;if(--record.refs===0){for(const slot of record.slots)if(slot){forget(slot);free.push(slot);}records.delete(record.key);}},
-    clear(){revision++;for(const record of records.values()){record.slots.fill(null);if(record.refs===0)records.delete(record.key);}for(const page of pages){page.canvas.width=0;page.canvas.height=0;}if(shadow){shadow.width=0;shadow.height=0;}pages.length=0;free.length=0;first=last=shadow=null;poses=builds=hits=misses=evictions=0;},
-    stats(){return{bytes:pages.length*PAGE_BYTES+(shadow?SHADOW_BYTES:0),maxBytes:maxCacheBytes,pages:pages.length,poses,looks:records.size,builds,hits,misses,evictions,preparations,capacity:maxPages*PAGE_COLUMNS*PAGE_ROWS};},
-    dispose(){this.clear();records.clear();closed=true;},
+    draw(ctx, pawn, { x, y, direction = "south", state = "idle", progress = 0, expression = "happy", shadow: showShadow = true } = {}) {
+      assertOpen(); const record = leaseFor(pawn).record, index = DIRECTION_INDEX[direction];
+      if (!Number.isInteger(index)) throw new Error(`Unsupported direction: ${direction}.`);
+      const face = expressionIndex(expression), frame = frameIndex(state, progress), a = record.appearance;
+      const profile = index === 2 || index === 6, sx = a.proportions.width * (profile ? .84 : 1);
+      if (showShadow) ctx.drawImage(shadowImage(), x - 32 * sx * a.proportions.width, y - 8 * a.proportions.height, 64 * sx * a.proportions.width, 16 * a.proportions.height);
+      const phase = frame / ANIMATION[state].frames * Math.PI * 2;
+      const bob = (state === "walk" ? Math.abs(Math.sin(phase)) * 1.1 : Math.sin(phase) * .5) * a.proportions.height;
+      const dx = Math.round(x - 32), dy = Math.round(y - 72) - bob;
+      const body = poseFor(record, index);
+      ctx.drawImage(body.page.canvas, body.x, body.y, FRAME_WIDTH, FRAME_HEIGHT, dx, dy, FRAME_WIDTH, FRAME_HEIGHT);
+      if (FACE_VISIBLE[index] && a.hat !== "greathelm") {
+        const sheet = poseFor(record.style, index), head = a.proportions.head;
+        ctx.drawImage(sheet.page.canvas, sheet.x + face % 2 * 32, sheet.y + Math.floor(face / 2) * 28, 32, 26,
+          dx + 32 + SIDE[index] * .7 * sx + FACE_X[index] * head, dy + 72 - 43 * a.proportions.height - .5 * head, 16 * head, 13 * head);
+      }
+    },
+    async warm(requests, { budgetMs = 4, signal, onProgress } = {}) {
+      assertOpen();
+      if (!Number.isFinite(budgetMs) || budgetMs <= 0) throw new Error("Warm-up budget must be a positive number of milliseconds.");
+      const tasks = [], seen = new Set(), startRevision = revision;
+      const add = (record, index, lease) => {
+        const key = record.id * 8 + index;
+        if (!seen.has(key)) { seen.add(key); tasks.push({ record, index, lease }); }
+      };
+      for (const { pawn, directions = ["south"] } of requests) {
+        const lease = leaseFor(pawn);
+        for (const direction of directions) {
+          const index = DIRECTION_INDEX[direction];
+          if (!Number.isInteger(index)) throw new Error(`Unsupported direction: ${direction}.`);
+          add(lease.record, index, lease);
+          if (FACE_VISIBLE[index] && lease.record.appearance.hat !== "greathelm") add(lease.record.style, index, lease);
+        }
+      }
+      if (tasks.length > maxPages * PAGE_COLUMNS * PAGE_ROWS) throw new Error("Warm-up exceeds cache capacity. Increase maxCacheBytes or warm fewer directions.");
+      if (tasks.length && !signal?.aborted) shadowImage();
+      let sliceStart = performance.now();
+      for (let i = 0; i < tasks.length; i++) {
+        if (signal?.aborted) throw new DOMException("Pawn warm-up aborted.", "AbortError");
+        assertOpen(); if (revision !== startRevision) throw new Error("Pawn cache changed during warm-up.");
+        const { record, index, lease } = tasks[i];
+        if (lease.released) throw new Error("Pawn was released during warm-up.");
+        poseFor(record, index);
+        if (performance.now() - sliceStart >= budgetMs && i + 1 < tasks.length) {
+          onProgress?.({ completed: i + 1, total: tasks.length });
+          await new Promise(resolve => setTimeout(resolve, 0)); sliceStart = performance.now();
+        }
+      }
+      onProgress?.({ completed: tasks.length, total: tasks.length }); return this.stats();
+    },
+    release(pawn) {
+      assertOpen(); const lease = leases.get(pawn);
+      if (!lease || lease.released) return;
+      lease.released = true; const record = lease.record;
+      if (--record.refs === 0) {
+        freeOwner(record); records.delete(record.key);
+        if (--record.style.refs === 0) { freeOwner(record.style); styles.delete(record.styleKey); }
+      }
+    },
+    clear() {
+      revision++;
+      for (const record of records.values()) record.slots.fill(null);
+      for (const style of styles.values()) style.slots.fill(null);
+      for (const page of pages) { page.canvas.width = 0; page.canvas.height = 0; }
+      if (shadow) { shadow.width = 0; shadow.height = 0; }
+      if (mask) { mask.width = 0; mask.height = 0; }
+      if (raster) { raster.width = 0; raster.height = 0; }
+      pages.length = free.length = 0; first = last = shadow = mask = raster = null;
+      poses = faceSheets = builds = faceBuilds = hits = misses = evictions = 0;
+    },
+    stats() {
+      return { bytes: pages.length * PAGE_BYTES + (shadow ? SHADOW_BYTES : 0) + (mask ? MASK_BYTES : 0) + (raster ? RASTER_BYTES : 0), maxBytes: maxCacheBytes,
+        pages: pages.length, poses, faceSheets, faceSprites: faceSheets * EXPRESSIONS.length, looks: records.size,
+        builds, faceBuilds, hits, misses, evictions, preparations, capacity: maxPages * PAGE_COLUMNS * PAGE_ROWS };
+    },
+    dispose() { this.clear(); records.clear(); styles.clear(); closed = true; },
   };
 }
-const defaultRenderer=createPawnRenderer();
-export function preparePawn(appearance){return defaultRenderer.prepare(appearance);}
-export function releasePawn(pawn){defaultRenderer.release(pawn);}
-export function drawPreparedPawn(ctx,pawn,options){defaultRenderer.draw(ctx,pawn,options);}
-export function warmPawns(requests,options){return defaultRenderer.warm(requests,options);}
-export function runtimeStats(){return defaultRenderer.stats();}
-export function clearAtlasCache(){defaultRenderer.clear();}
-export function atlasCacheBytes(){return defaultRenderer.stats().bytes;}
-export function drawFrame(ctx,appearance,options){defaultRenderer.drawAppearance(ctx,appearance,options);}
 
-export function createAtlas(appearance, scale = 1) { if (![1, 2].includes(scale)) throw new Error("Atlas scale must be 1 or 2."); return makeAtlas(normalizeAppearance(appearance), scale); }
-export function atlasMetadata(appearance, scale = 1) {
-  const a = normalizeAppearance(appearance); if (![1, 2].includes(scale)) throw new Error("Atlas scale must be 1 or 2.");
-  const frames = {}; DIRECTIONS.forEach((direction, row) => { frames[direction] = { idle: Array.from({ length: 4 }, (_, i) => ({ x: i * FRAME_WIDTH * scale, y: row * FRAME_HEIGHT * scale, width: FRAME_WIDTH * scale, height: FRAME_HEIGHT * scale })), walk: Array.from({ length: 8 }, (_, i) => ({ x: (i + 4) * FRAME_WIDTH * scale, y: row * FRAME_HEIGHT * scale, width: FRAME_WIDTH * scale, height: FRAME_HEIGHT * scale })) }; });
-  return { version: 1, appearance: a, width: FRAME_WIDTH * 12 * scale, height: FRAME_HEIGHT * 8 * scale, frameWidth: FRAME_WIDTH * scale, frameHeight: FRAME_HEIGHT * scale, columns: 12, rows: 8, directions: DIRECTIONS, animations: ANIMATION, footAnchor: { x: 32 * scale, y: 72 * scale }, collisionRadius: 9 * scale, frames };
+function atlasOptions(options = {}) {
+  if (!options || typeof options !== "object" || Array.isArray(options)) throw new Error("Atlas options must be an object.");
+  const { scale = 1, expression = "happy" } = options;
+  expressionIndex(expression);
+  if (![1, 2].includes(scale)) throw new Error("Unsupported scale; choose 1 or 2.");
+  return { scale, expression };
+}
+export function createAtlas(input, options) {
+  const { scale, expression } = atlasOptions(options);
+  return makeAtlas(normalizeAppearance(input), scale, expression);
+}
+export function atlasMetadata(input, options) {
+  const { scale, expression } = atlasOptions(options), appearance = normalizeAppearance(input);
+  const frames = {};
+  DIRECTIONS.forEach((direction, row) => {
+    frames[direction] = {};
+    for (const [state, count, start] of [["idle", 4, 0], ["walk", 8, 4]])
+      frames[direction][state] = Array.from({ length: count }, (_, index) => ({ x: (index + start) * FRAME_WIDTH * scale, y: row * FRAME_HEIGHT * scale, width: FRAME_WIDTH * scale, height: FRAME_HEIGHT * scale }));
+  });
+  return { version: 2, appearance, expression, width: FRAME_WIDTH * 12 * scale, height: FRAME_HEIGHT * 8 * scale,
+    frameWidth: FRAME_WIDTH * scale, frameHeight: FRAME_HEIGHT * scale, columns: 12, rows: 8, directions: DIRECTIONS,
+    animations: ANIMATION, footAnchor: { x: 32 * scale, y: 72 * scale }, collisionRadius: 9 * scale, frames };
 }

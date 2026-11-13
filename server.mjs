@@ -7,6 +7,7 @@ const files = new Map([
   ["pawns.html", "text/html; charset=utf-8"],
   ["pawn-review.html", "text/html; charset=utf-8"],
   ["pawn-engine.js", "text/javascript; charset=utf-8"],
+  ["expression-checks.js", "text/javascript; charset=utf-8"],
   ["pawns.js", "text/javascript; charset=utf-8"],
   ["pawns.css", "text/css; charset=utf-8"],
   ["favicon.svg", "image/svg+xml"],

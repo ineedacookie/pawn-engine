@@ -1,9 +1,18 @@
 <!doctype html>
 <html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Pawn wardrobe · Direction review</title>
 <style>body{font:15px system-ui;background:#f3eee2;color:#493934;margin:24px auto;max-width:1050px}header{position:sticky;top:0;background:#f3eee2;padding:10px;z-index:1;border-bottom:1px solid #d9cbb8}a{color:#814936}h1{font-size:22px;margin:6px 0}section{background:#fffaf1;margin:14px 0;padding:10px;border-radius:12px}h2{font-size:14px;margin:0}canvas{width:100%;height:auto;display:block}.directions{display:grid;grid-template-columns:repeat(8,1fr);text-align:center;font-size:12px;color:#816955}select{padding:6px;margin-left:10px}</style>
-<header><a href="/pawns.html">← Pawn workshop</a><h1>Wardrobe direction review</h1><label>Proportions<select id="size"><option value="normal">Default</option><option value="small">All minimum</option><option value="large">All maximum</option></select></label> <label>Views<select id="views"><option value="all">All directions</option><option value="profiles">West / east</option></select></label><span id="status"></span><span id="layer-status"></span><span id="profile-status"></span><span id="runtime-status"></span><div class="directions" id="labels"></div></header><main></main>
+<header><a href="/pawns.html">← Pawn workshop</a><h1>Wardrobe direction review</h1><label>Proportions<select id="size"><option value="normal">Default</option><option value="small">All minimum</option><option value="large">All maximum</option></select></label> <label>Views<select id="views"><option value="all">All directions</option><option value="profiles">West / east</option></select></label><label>Expression<select id="expression"></select></label> <label>Source<select id="source"><option value="runtime">Runtime</option><option value="export">Vector export</option></select></label> <button id="check-expressions">Check expression layers</button><span id="expression-status"></span><span id="status"></span><span id="layer-status"></span><span id="profile-status"></span><span id="runtime-status"></span><div class="directions" id="labels"></div></header><main></main>
 <script type="module">
-import {createPawnRenderer,PAWN_DEFAULTS,PAWN_OPTIONS,CLASS_PRESETS,DIRECTIONS,normalizeAppearance,createAtlas,clearAtlasCache} from '/pawn-engine.js';
+import {runExpressionChecks} from "/expression-checks.js";
+import {EXPRESSIONS,createPawnRenderer,PAWN_DEFAULTS,PAWN_OPTIONS,CLASS_PRESETS,DIRECTIONS,normalizeAppearance,createAtlas} from '/pawn-engine.js';
+const expressionSelect=document.querySelector('#expression');
+for(const value of EXPRESSIONS){const option=document.createElement('option');option.value=value;option.textContent=value;expressionSelect.append(option);}
+document.querySelector('#check-expressions').addEventListener('click',async event=>{
+  const button=event.currentTarget,status=document.querySelector('#expression-status');button.disabled=true;
+  try{const result=await runExpressionChecks({onProgress:({completed,total})=>{status.textContent=` · Checking expressions ${completed}/${total}…`;}});status.textContent=` · ${result.checks-result.failed}/${result.checks} expression layer checks passed`;status.dataset.result=JSON.stringify(result);}
+  catch(error){status.textContent=error.message;status.dataset.result=JSON.stringify({error:error.message});}
+  finally{button.disabled=false;}
+});
 const labels=document.querySelector('#labels'); for(const direction of DIRECTIONS){const el=document.createElement('span');el.textContent=direction;labels.append(el);}
 const entries=Object.entries(PAWN_OPTIONS).filter(([key])=>['hair','hat','outfit','bag','back','belt'].includes(key)).flatMap(([part,values])=>values.map(value=>({name:`${part} · ${value}`,look:{[part]:value}})));
 entries.push({name:'Combination · ponytail / beanie / hoodie / backpack',look:{hair:'ponytail',hat:'beanie',outfit:'hoodie',bag:'backpack'}},{name:'Combination · braid / beret / cardigan / shoulder',look:{hair:'braid',hat:'beret',outfit:'cardigan',bag:'shoulder'}},{name:'Combination · long / headscarf / dress / tote',look:{hair:'long',hat:'hood',outfit:'dress',bag:'tote'}});
@@ -69,8 +78,8 @@ checkProfileFaces();
 let revision=0;
 function touchesEdge(canvas,cols,rows){const {width:w,height:h}=canvas,cw=w/cols,ch=h/rows;const pixels=canvas.getContext('2d').getImageData(0,0,w,h).data;for(let row=0;row<rows;row++)for(let col=0;col<cols;col++){const left=col*cw,right=left+cw-1,top=row*ch,bottom=top+ch-1;for(let x=left;x<=right;x++)if(pixels[(top*w+x)*4+3]||pixels[(bottom*w+x)*4+3])return true;for(let y=top;y<=bottom;y++)if(pixels[(y*w+left)*4+3]||pixels[(y*w+right)*4+3])return true;}return false;}
 async function render(){
-  const token=++revision;clearAtlasCache();document.querySelector('main').replaceChildren();
-  const size=document.querySelector('#size').value,previewDirections=document.querySelector('#views').value==='profiles'?['west','east']:DIRECTIONS;
+  const token=++revision;document.querySelector('main').replaceChildren();
+  const expression=expressionSelect.value,size=document.querySelector('#size').value,previewDirections=document.querySelector('#views').value==='profiles'?['west','east']:DIRECTIONS;
   labels.replaceChildren(...previewDirections.map(direction=>{const el=document.createElement('span');el.textContent=direction;return el;}));
   labels.style.gridTemplateColumns=`repeat(${previewDirections.length},1fr)`;labels.style.width=previewDirections.length===2?'512px':'100%';labels.style.maxWidth='100%';
   const proportions=size==='small'?{height:.85,head:.85,width:.8}:size==='large'?{height:1.15,head:1.15,width:1.2}:{height:1,head:1,width:1};
@@ -82,30 +91,38 @@ async function render(){
       const section=document.createElement('section'),h=document.createElement('h2'),canvas=document.createElement('canvas');h.textContent=entry.name;
       canvas.width=previewDirections.length*128;canvas.height=160;canvas.style.width=previewDirections.length===2?'512px':'100%';canvas.setAttribute('aria-label',entry.name);
       section.append(h,canvas);document.querySelector('main').append(section);const ctx=canvas.getContext('2d');ctx.scale(2,2);
-      const look=normalizeAppearance({...PAWN_DEFAULTS,...entry.look,colors:{...PAWN_DEFAULTS.colors,...entry.look.colors},proportions}),atlas=createAtlas(look),pawn=runtime.prepare(look);
-      previewDirections.forEach((direction,index)=>ctx.drawImage(atlas,0,DIRECTIONS.indexOf(direction)*80,64,80,index*64,0,64,80));
+      const look=normalizeAppearance({...PAWN_DEFAULTS,...entry.look,colors:{...PAWN_DEFAULTS.colors,...entry.look.colors},proportions}),atlas=createAtlas(look,{expression}),pawn=runtime.prepare(look);
+      previewDirections.forEach((direction,index)=>{
+        if(document.querySelector('#source').value==='runtime')runtime.draw(ctx,pawn,{x:index*64+32,y:72,direction,expression});
+        else ctx.drawImage(atlas,0,DIRECTIONS.indexOf(direction)*80,64,80,index*64,0,64,80);
+      });
       if(touchesEdge(atlas,12,8)){h.textContent+=' — touches sprite edge';section.dataset.clipped='true';}
       for(const [row,direction]of DIRECTIONS.entries()){
-        compareCtx.clearRect(0,0,64,80);runtime.draw(compareCtx,pawn,{x:32,y:72,direction,shadow:false});
+        compareCtx.clearRect(0,0,64,80);runtime.draw(compareCtx,pawn,{x:32,y:72,direction,expression,shadow:false});
         // Exclude the floor shadow: it is now a separately shared sprite.
         const expected=atlas.getContext('2d').getImageData(0,row*80,64,67).data,actual=compareCtx.getImageData(0,0,64,67).data;
         let equal=true,maxError=0,differentPixels=0;
         // Compare premultiplied colors so invisible RGB values at antialiased
         // transparent edges do not count as visible rendering differences.
-        for(let pixel=0;pixel<expected.length;pixel+=4){let error=Math.abs(expected[pixel+3]-actual[pixel+3]);for(let channel=0;channel<3;channel++)error=Math.max(error,Math.abs(expected[pixel+channel]*expected[pixel+3]/255-actual[pixel+channel]*actual[pixel+3]/255));maxError=Math.max(maxError,error);if(error>3)differentPixels++;}
-        // Packing the same vector geometry at different page coordinates can
-        // alter a handful of antialiased edge samples. Bound both their count
-        // (under 0.4% of body pixels) and magnitude; do not tolerate shape shifts.
+        for(let pixel=0;pixel<expected.length;pixel+=4){
+          // Faces are independently sampled sprites; reaction alignment and
+          // occlusion have their own vector-reference checks above.
+          const x=pixel/4%64,y=Math.floor(pixel/4/64),side=direction.includes('east')?1:direction.includes('west')?-1:0;
+          const sx=proportions.width*(['west','east'].includes(direction)?.84:1),hx=32+side*.7*sx,hy=72-43*proportions.height,head=proportions.head;
+          if(!direction.startsWith('north')&&look.hat!=='greathelm'&&x>=hx-16*head-1&&x<=hx+16*head+1&&y>=hy-2*head-1&&y<=hy+14*head+1)continue;
+          let error=Math.abs(expected[pixel+3]-actual[pixel+3]);for(let channel=0;channel<3;channel++)error=Math.max(error,Math.abs(expected[pixel+channel]*expected[pixel+3]/255-actual[pixel+channel]*actual[pixel+3]/255));maxError=Math.max(maxError,error);if(error>3)differentPixels++;}
+        // Bound small differences from image compositing/antialiasing, both
+        // in count (under 0.4% of body pixels) and magnitude. Shape shifts fail.
         equal=differentPixels<=16 && maxError<=24;
         if(!equal){section.dataset.runtimeError=Math.max(Number(section.dataset.runtimeError||0),maxError);section.dataset.differentPixels=Number(section.dataset.differentPixels||0)+differentPixels;}
         compared++;if(!equal){mismatches++;section.dataset.runtimeMismatch='true';}
       }
-      runtime.release(pawn);
+      runtime.release(pawn);atlas.width=atlas.height=0;
       document.querySelector('#status').textContent=` ${i+1} / ${entries.length} rows · ${document.querySelectorAll('[data-clipped]').length} edge warnings`;
       document.querySelector('#runtime-status').textContent=` · ${compared-mismatches}/${compared} runtime body comparisons passed (AA tolerance)`;
       if(i%4===3)await new Promise(resolve=>setTimeout(resolve,0));
     }
   }finally{runtime.dispose();}
 }
-document.querySelector('#size').addEventListener('change',render);document.querySelector('#views').addEventListener('change',render);render();
+document.querySelector('#source').addEventListener('change',render);expressionSelect.addEventListener('change',render);document.querySelector('#size').addEventListener('change',render);document.querySelector('#views').addEventListener('change',render);render();
 </script></html>
