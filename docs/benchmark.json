@@ -1,0 +1,14 @@
+{
+  "environment": {
+    "platform": "macOS arm64",
+    "browser": "Chrome 157.0.0.0",
+    "cpuGpuModel": "not available in the filesystem sandbox",
+    "scope": "Crowd canvas in the live workshop; other workshop canvases also animate. Pose memory counts allocated RGBA pages and shared shadow, not total browser or GPU memory."
+  },
+  "samples": [
+    {"uniqueLooks":500,"allDirections":true,"fps":119.98,"p95DrawMs":3.7,"poseMemoryMiB":80.00390625,"warmUpMs":537,"poseBuildsAfterWarm":0,"evictions":0,"residentPoses":4000},
+    {"uniqueLooks":1000,"allDirections":true,"fps":100.99,"p95DrawMs":9.2,"poseMemoryMiB":157.50390625,"warmUpMs":735.5,"poseBuildsAfterWarm":0,"evictions":0,"residentPoses":8000},
+    {"uniqueLooks":1000,"allDirections":false,"fps":120.15,"p95DrawMs":3.3,"poseMemoryMiB":20.00390625,"warmUpMs":53.4,"poseBuildsAfterWarm":0,"evictions":0,"residentPoses":1000}
+  ],
+  "limitations": "Session snapshots, not a guarantee for other devices or a complete game's workload. Frames were real browser renders, not the stub canvas used in cache unit tests."
+}

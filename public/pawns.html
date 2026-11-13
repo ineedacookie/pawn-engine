@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Pawn Engine · Workshop</title><link rel="icon" href="/favicon.svg"><link rel="stylesheet" href="/pawns.css"></head>
+<body><header><a href="/">PAWN ENGINE</a><span>PAWN WORKSHOP</span><small><a href="/pawn-review.html">Review all wardrobe angles ↗</a></small></header>
+<main>
+  <section class="intro"><div><p class="eyebrow">CHARACTER ENGINE · VERSION 1</p><h1>Make a little person.</h1><p>Shape a pawn, inspect every angle, then try them in motion. Everything is drawn locally in your browser.</p></div><button id="randomize" class="primary">Surprise me ↻</button></section>
+  <div class="layout">
+    <aside class="panel controls"><h2>Appearance</h2>
+      <label>Class preset <select id="class-preset"><option value="">Custom look</option></select></label>
+      <div class="palette-key" id="palette-key" aria-label="Standard concept palette"></div>
+      <label>Skin <span class="color-chip" data-swatch="skin" aria-hidden="true"></span><select data-color="skin" aria-label="Skin color"></select></label><label>Hair color <span class="color-chip" data-swatch="hair" aria-hidden="true"></span><select data-color="hair" aria-label="Hair color"></select></label><label>Clothes <span class="color-chip" data-swatch="clothes" aria-hidden="true"></span><select data-color="clothes" aria-label="Clothes color"></select></label><label>Accent <span class="color-chip" data-swatch="accent" aria-hidden="true"></span><select data-color="accent" aria-label="Accent color"></select></label>
+      <label>Metal <span class="color-chip" data-swatch="metal" aria-hidden="true"></span><select data-color="metal" aria-label="Metal color"></select></label>
+      <label>Bag leather <span class="color-chip" data-swatch="bag" aria-hidden="true"></span><select data-color="bag" aria-label="Bag color"></select></label>
+      <label>Expression <select data-part="expression"><option value="happy">Happy</option><option value="neutral">Neutral</option><option value="excited">Excited</option><option value="sleepy">Sleepy</option><option value="surprised">Surprised</option></select></label>
+      <label>Hair style <select data-part="hair"><option value="bald">Bald</option><option value="short">Short</option><option value="bob">Bob</option><option value="curly">Curly</option><option value="long">Long</option></select></label>
+      <label>Outfit <select data-part="outfit"><option value="tunic">Tunic</option><option value="dress">Dress</option><option value="overalls">Overalls</option></select></label>
+      <label>Hat / hair decor <select data-part="hat"><option value="none">None</option><option value="beanie">Beanie</option><option value="sunhat">Sun hat</option></select></label>
+      <label>Bag <select data-part="bag"><option value="none">None</option><option value="shoulder">Shoulder bag</option><option value="backpack">Backpack</option></select></label>
+      <label>Back equipment <select data-part="back"></select></label>
+      <label>Belt equipment <select data-part="belt"></select></label>
+      <label>Height <output data-output="height">100%</output><input type="range" data-size="height" min="85" max="115" value="100"></label>
+      <label>Head size <output data-output="head">100%</output><input type="range" data-size="head" min="85" max="115" value="100"></label>
+      <label>Body width <output data-output="width">100%</output><input type="range" data-size="width" min="80" max="120" value="100"></label>
+      <div class="buttons"><button id="reset">Reset</button><button id="export-json">Export look</button><button id="import-json">Import look</button><input id="json-file" type="file" accept="application/json" hidden></div>
+      <label>Export size <select id="export-scale"><option value="1">Native · 64 × 80</option><option value="2">Double · 128 × 160</option></select></label><button class="export" id="export-atlas">Download sprite atlas</button>
+    </aside>
+    <div class="content">
+      <section class="panel hero"><div><p class="eyebrow">LIVE PREVIEW</p><h2>Your pawn</h2></div><canvas id="hero" width="256" height="320" aria-label="Large pawn preview"></canvas></section>
+      <section class="panel angles"><div class="section-title"><div><p class="eyebrow">8-DIRECTION SHEET</p><h2>Every angle</h2></div><div class="segmented"><button data-state="idle" class="active">Idle</button><button data-state="walk">Walk</button></div></div><div id="gallery" class="gallery"></div><div class="transport"><button id="pause">Pause</button><button id="step">Step frame →</button><span id="frame-label">Frame 1 / 4</span></div></section>
+      <section class="panel"><div class="section-title"><div><p class="eyebrow">MOVEMENT + COLLISION</p><h2>Walk around</h2></div><span class="hint">WASD / arrows · Release to stop</span></div><canvas id="arena" width="640" height="360" aria-label="Movement test arena"></canvas></section>
+      <section class="panel"><div class="section-title"><div><p class="eyebrow">RENDER CHECK</p><h2>Crowd benchmark</h2></div><button id="perf-toggle">Start test</button></div><div class="transport"><label>Unique looks <select id="perf-count"><option>100</option><option selected>500</option><option>1000</option></select></label><label>Facing <select id="perf-directions"><option value="all">Turn through all 8 views</option><option value="current">Keep current facing</option></select></label></div><canvas id="perf" width="640" height="360"></canvas><p id="perf-label" class="hint">Prepared poses · bounded shared texture pages</p></section>
+    </div>
+  </div>
+</main><script type="module" src="/pawns.js"></script></body></html>
