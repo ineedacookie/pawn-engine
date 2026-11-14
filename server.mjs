@@ -4,6 +4,8 @@ import { fileURLToPath } from "node:url";
 import { resolve } from "node:path";
 
 const files = new Map([
+  ["example.html", "text/html; charset=utf-8"],
+  ["example.js", "text/javascript; charset=utf-8"],
   ["pawns.html", "text/html; charset=utf-8"],
   ["characters.html", "text/html; charset=utf-8"],
   ["characters.css", "text/css; charset=utf-8"],

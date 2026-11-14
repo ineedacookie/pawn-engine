@@ -1,9 +1,9 @@
 # Contributing
 
-Create a feature branch and open a pull request targeting `main`. Run `npm test` and review changed wardrobe pieces at `/pawn-review.html` in all eight directions and at minimum/maximum proportions.
+Create a feature branch and open a pull request targeting `main`. Install development tools with `npm ci` and `npx playwright install chromium`, then run `npm run check`. Review changed wardrobe pieces at `/pawn-review.html` in all eight directions and at minimum/maximum proportions.
 
-`main` requires resolved review conversations and one code-owner approval from `@ineedacookie`. New commits dismiss stale approvals. Direct pushes, force pushes, and branch deletion are blocked, including for administrators. Run tests locally before requesting review; GitHub Actions is not configured.
+For non-administrators, `main` requires resolved review conversations and one code-owner approval from `@ineedacookie`; new commits dismiss stale approvals. Current and future administrators may bypass branch protection, as authorized by the repository owner. Prefer feature branches and pull requests so changes stay reviewable.
 
-GitHub does not let authors approve their own pull requests. A pull request authored by `@ineedacookie` therefore cannot satisfy the sole-code-owner requirement. Owner-authored work needs a separately authorized reviewer and a deliberate update to the ownership policy. Administrative access can still change repository settings.
+GitHub Actions runs `npm run check`: unit/server tests, real release-tarball JavaScript/TypeScript consumer checks, and headless Chromium pixel regression checks. Browser artifacts are uploaded for inspection. Runtime modules remain dependency-free; TypeScript and Playwright are development-only dependencies.
 
-The initial import seeds `main` before protection is enabled. All subsequent changes follow the protected pull request workflow.
+Before a release, bump the package and lockfile version together and run the full checks. `npm pack --pack-destination /tmp` creates an installable, versioned tarball. Publishing to a registry is a separate action.

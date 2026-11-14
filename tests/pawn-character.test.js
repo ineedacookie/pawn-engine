@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createPawnCharacters, PawnCharacter, CHARACTER_ACTIONS, REACTIONS } from "../public/pawn-character.js";
 import { createPawnEffects, EFFECT_BYTES } from "../public/pawn-effects.js";
-import { DIRECTIONS, PAWN_OPTIONS, PAWN_PALETTE } from "../public/pawn-engine.js";
+import { createPawnRenderer, DIRECTIONS, PAWN_OPTIONS, PAWN_PALETTE } from "../public/pawn-engine.js";
 
 async function withCanvas(check) {
   const previous = globalThis.document, calls = [], colors = [], strokes = [], canvases = [];
@@ -76,6 +76,48 @@ test("held anchors follow every direction and sitting lift without resizing the 
     c.setPosture("standing").update(2);
   }
   cast.dispose();
+}));
+
+test("interleaved body, foreground and overhead passes reuse each character's private layout", () => withCanvas(async ctx => {
+  const cast = createPawnCharacters();
+  const characters = Array.from({ length: 100 }, (_, x) => cast.create({}, { x }).act("hold-cards").react("love"));
+  await cast.warm(characters);
+  for (const c of characters) { c.update(.25); c.draw(ctx, { foreground: false }); }
+  for (const c of characters) c.drawForeground(ctx);
+  for (const c of characters) c.drawOverhead(ctx);
+  assert.equal(cast.stats().layoutBuilds, 100);
+  assert.equal(cast.stats().layoutHits, 100);
+  // Expression changes and sub-frame time changes do not move the rig.
+  for (const c of characters) { c.expression = "surprised"; c.update(.001); c.draw(ctx); c.drawOverhead(ctx); }
+  assert.equal(cast.stats().layoutBuilds, 100);
+  characters[0].x++; characters[0].draw(ctx);
+  assert.equal(cast.stats().layoutBuilds, 101);
+  const snapshot = characters[0].layout(), headX = snapshot.headX;
+  snapshot.headX = -999;
+  assert.equal(characters[0].layout().headX, headX);
+  characters[0].x = NaN;
+  assert.throws(() => characters[0].layout(), /finite/);
+  assert.throws(() => characters[0].layout(), /finite/);
+  cast.dispose();
+}));
+
+test("layout caching respects every pose input and cannot be corrupted through public snapshots", () => withCanvas(ctx => {
+  const renderer = createPawnRenderer(), pawn = renderer.prepare({});
+  const view = { x: 100, y: 120, direction: "south", state: "idle", progress: 0, lift: 0 };
+  const original = renderer.layout(pawn, view);
+  original.headX = -999; original.floorX = -999;
+  assert.notEqual(renderer.layout(pawn, view).headX, -999);
+  for (const [key, value] of [["x", 101], ["y", 121], ["direction", "west"], ["state", "walk"], ["progress", .25], ["lift", 6]]) {
+    const before = renderer.stats().layoutBuilds;
+    view[key] = value; renderer.draw(ctx, pawn, view);
+    assert.equal(renderer.stats().layoutBuilds, before + 1, key);
+  }
+  assert.throws(() => renderer.layout(pawn, { ...view, direction: "wrong" }), /Unsupported direction/);
+  assert.throws(() => renderer.layout(pawn, { ...view, x: NaN }), /finite/);
+  assert.throws(() => renderer.layout(pawn, { ...view, state: "wrong" }), /Unsupported animation/);
+  const other = renderer.prepare({ proportions: { height: 1.15 } });
+  assert.notEqual(renderer.layout(other, view).headY, renderer.layout(pawn, view).headY);
+  renderer.dispose();
 }));
 
 test("rear props render behind the pawn, foreground props can follow a tabletop, and bubbles use a final pass", () => withCanvas(async (ctx, calls) => {

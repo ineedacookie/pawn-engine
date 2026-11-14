@@ -1,13 +1,33 @@
 {
   "name": "pawn-engine",
-  "version": "0.3.0",
-  "private": true,
+  "version": "0.3.1",
   "description": "Dependency-free Canvas 2D character engine and customization workshop.",
   "type": "module",
-  "exports": {".": "./public/pawn-engine.js", "./characters": "./public/pawn-character.js"},
-  "engines": { "node": ">=22" },
+  "main": "./public/pawn-engine.js",
+  "types": "./public/pawn-engine.d.ts",
+  "sideEffects": false,
+  "repository": { "type": "git", "url": "git+https://github.com/ineedacookie/pawn-engine.git" },
+  "files": [
+    "public/pawn-engine.js", "public/pawn-engine.d.ts",
+    "public/pawn-character.js", "public/pawn-character.d.ts", "public/pawn-effects.js",
+    "public/example.html", "public/example.js", "docs/"
+  ],
+  "exports": {
+    ".": { "types": "./public/pawn-engine.d.ts", "import": "./public/pawn-engine.js", "default": "./public/pawn-engine.js" },
+    "./characters": { "types": "./public/pawn-character.d.ts", "import": "./public/pawn-character.js", "default": "./public/pawn-character.js" }
+  },
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "start": "node server.mjs",
-    "test": "node --test tests/*.test.js"
+    "test": "node --test tests/*.test.js",
+    "test:types": "tsc --project tests/types/tsconfig.json",
+    "test:browser": "node --test tests/browser.test.mjs",
+    "check": "npm test && npm run test:types && npm run test:browser"
+  },
+  "devDependencies": {
+    "playwright": "1.65.1",
+    "typescript": "7.0.2"
   }
 }
