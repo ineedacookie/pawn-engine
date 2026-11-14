@@ -2,6 +2,8 @@
 
 For card-table actions, reaction bubbles, seated characters, and stink effects, use the [character layer](characters.md).
 
+The [minimal example](../public/example.html) and [source](../public/example.js) demonstrate the complete browser lifecycle. For package installation, see the [README](../README.md#use-in-a-game). TypeScript definitions ship with both `pawn-engine` and `pawn-engine/characters`; they describe the same browser API as the relative module imports below. No transpilation is required for JavaScript consumers.
+
 Run `npm start` and open `/pawns.html`. Customize clothing, hair, headgear, bags, back equipment, belt equipment, colors, and proportions. Class presets include warrior, knight, monk, archer, ranger, mage, cleric, rogue, and bard. Colors map to the shared 25-color palette; contours use solid black.
 
 Expressions are independent runtime state. Changing the workshop's expression control does not prepare another appearance. The crowd benchmark offers independent reaction events and a stress mode in which every pawn changes expression every frame. `/pawn-review.html` reviews wardrobe angles and runs real-canvas expression alignment and occlusion checks.
@@ -50,6 +52,10 @@ For 1,000 unique looks with all eight directions resident, use 192 MiB. The work
 
 `renderer.stats()` reports allocated bytes, page count, resident body poses, face sheets/sprites, appearances, body builds, face builds, cache hits/misses/evictions, preparations, and slot capacity. Monitor both build counters after warm-up. Avoid keeping more active directions than the chosen budget can hold.
 
+Each handle also retains one private layout keyed by position, direction, state, animation frame and lift. Interleaved actor/foreground/overhead passes reuse it, and expression changes do not recompute geometry. `layoutBuilds`/`layoutHits` count calculations/reuse. Public layout outputs are copies; changing a snapshot cannot change rendering. Layout objects live on the JS heap and are excluded from the pixel-buffer budget.
+
+The 0.3.1 refinement reduced geometry calculations from 600,000 to 5,000 in a controlled 1,000-character, 150-frame comparison with interleaved body/foreground/overhead passes. Headless Chromium 159 on macOS arm64 showed overlapping CPU timings: baseline median 15.2–15.5 ms, refined 15.2–16.3 ms; p95 18.2–18.9 ms versus 18.5–19.3 ms. Each variant ran twice in alternating order, with the first 30 frames discarded. These unpaced command-submission timings are noisy, exclude GPU completion, and establish no overall FPS improvement; the existing crowd-performance limits still apply.
+
 ## Appearance files and exports
 
 Appearance schema version 2 contains wardrobe selections, colors, and proportions. It has no expression or shoe color. Version-1 imports, the removed `braids` style, and `appearance.expression` are unsupported. There are no migration adapters, mutable-appearance drawing methods, or global renderer wrappers; use a renderer instance.
@@ -66,7 +72,9 @@ Atlas exports draw original vector geometry at native or double resolution. Each
 
 ## Verification
 
-Run `npm test` for appearance, export layout, ownership, bounded-cache, cancellation, and expression switching tests. Runtime unit tests use a stub canvas and are not performance measurements.
+After `npm ci` and `npx playwright install chromium`, run `npm run check` for the complete local/CI suite. `npm test` covers appearance, export layout, ownership, bounded-cache, cancellation, expression switching and an isolated packed-package consumer. `npm run test:types` checks positive and negative TypeScript examples. Runtime unit tests use a stub canvas and are not performance measurements.
+
+`npm run test:browser` launches headless Chromium, tests the minimal example, and runs the existing real-pixel expression and action audits. Results and screenshots are saved under `output/playwright/` and uploaded by CI, including on failures. Browser and temporary server cleanup runs in `finally` blocks. These audits catch alignment, occlusion and layering regressions; they do not replace visual art review or target-device benchmarking.
 
 For real rendering, open `/pawn-review.html`, inspect all angles at default/minimum/maximum proportions, and click **Check expression layers**. The audit compares expression changes against vector atlas exports, checks changes remain in the face region, verifies alignment/occlusion within documented raster sampling tolerances, and checks hidden faces remain unchanged.
 

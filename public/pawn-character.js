@@ -22,7 +22,8 @@ function cards(value) { if (!Number.isInteger(value) || value < 1 || value > 7) 
 /** Runtime presentation only. The game owns navigation, transactions and rules. */
 export class PawnCharacter {
   #context; #handle; #released = false; #reaction = null; #lift = 0; #target = null;
-  #rig = {}; #view = { x: 0, y: 0, direction: "south", state: "idle", progress: 0, expression: "happy", lift: 0 };
+  #rig = {}; #snapshot = {}; #rigReady = false;
+  #view = { x: 0, y: 0, direction: "south", state: "idle", progress: 0, expression: "happy", lift: 0 };
   #actionTime = 0; #time = 0; #distance = 0; #walking = false; #phase;
   constructor(cast, appearance = {}, { x = 0, y = 0, direction = "south", posture = "standing", cardCount = 4, onActionComplete = null } = {}) {
     const context = contexts.get(cast);
@@ -46,6 +47,7 @@ export class PawnCharacter {
   setAppearance(appearance) {
     this.#live(); const next = this.#context.renderer.prepare(appearance);
     this.#context.renderer.release(this.#handle); this.#handle = next;
+    this.#rigReady = false;
     this.#lift = this.posture === "seated" ? 6 * this.appearance.proportions.height : 0;
     return this;
   }
@@ -103,13 +105,21 @@ export class PawnCharacter {
     } else if (!definition.duration) this.#actionTime %= 60;
     return this;
   }
-  layout(out = this.#rig) {
+  #layout() {
     this.#live(); const view = this.#view;
-    view.x = this.x; view.y = this.y; view.direction = this.direction; view.state = this.#walking ? "walk" : "idle";
-    view.progress = this.#walking ? this.#distance : this.#time * .5; view.lift = this.#lift;
+    const state = this.#walking ? "walk" : "idle", progress = this.#walking ? this.#distance : this.#time * .5;
+    const changed = !this.#rigReady || view.x !== this.x || view.y !== this.y || view.direction !== this.direction ||
+      view.state !== state || view.progress !== progress || view.lift !== this.#lift;
+    view.x = this.x; view.y = this.y; view.direction = this.direction; view.state = state;
+    view.progress = progress; view.lift = this.#lift;
     view.expression = this.displayExpression;
-    return this.#context.renderer.layout(this.#handle, view, out);
+    if (changed) {
+      this.#rigReady = false;
+      this.#context.renderer.layout(this.#handle, view, this.#rig); this.#rigReady = true;
+    }
+    return this.#rig;
   }
+  layout(out = this.#snapshot) { return Object.assign(out, this.#layout()); }
   #props(ctx, rig) {
     if (this.action === "idle" || this.action === "wait" || this.action === "celebrate") return;
     const fx = this.#context.effects, scale = rig.propScale;
@@ -145,7 +155,7 @@ export class PawnCharacter {
   }
   draw(ctx, { foreground = true } = DEFAULT_DRAW) {
     this.#live(); if (!this.visible) return;
-    const rig = this.layout();
+    const rig = this.#layout();
     if (this.stinky) {
       const frame = Math.floor((this.#time * .65 + this.#phase) % 1 * 8);
       const scale = Math.max(this.appearance.proportions.width, this.appearance.proportions.height) * .8;
@@ -158,11 +168,11 @@ export class PawnCharacter {
     if (!rig.rear && foreground) this.#props(ctx, rig);
   }
   /** Use after a tabletop for a character first drawn with foreground:false. */
-  drawForeground(ctx) { this.#live(); if (!this.visible) return; const rig = this.layout(); if (!rig.rear) this.#props(ctx, rig); }
+  drawForeground(ctx) { this.#live(); if (!this.visible) return; const rig = this.#layout(); if (!rig.rear) this.#props(ctx, rig); }
   /** Draw after all world furniture/actors, so bubbles cannot hide behind it. */
   drawOverhead(ctx) {
     this.#live(); if (!this.visible || (!this.#reaction && this.action !== "wait" && this.action !== "celebrate")) return;
-    const rig = this.layout(), fx = this.#context.effects;
+    const rig = this.#layout(), fx = this.#context.effects;
     const reaction = this.#reaction, kind = reaction?.kind ?? (this.action === "wait" ? "waiting" : null);
     if (kind) {
       const age = reaction ? reaction.duration - reaction.remaining : 1;

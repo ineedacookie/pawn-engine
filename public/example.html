@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pawn Engine · Minimal integration</title>
+<style>
+  :root { color: #533b37; background: #f4ead5; font: 16px system-ui, sans-serif; }
+  body { max-width: 640px; margin: 3rem auto; padding: 0 1rem; }
+  canvas { display: block; width: 100%; background: #f3dfbd; border: 2px solid #000; border-radius: 16px; }
+  button { margin: 1rem .5rem 0 0; padding: .6rem 1rem; background: #9fbb94; border: 2px solid #000; border-radius: 12px; cursor: pointer; }
+</style>
+<h1>One pawn, one game loop.</h1>
+<p>Move with WASD or arrow keys. Your game owns movement; the character owns its presentation.</p>
+<canvas id="game" width="640" height="360" aria-label="Move a pawn around the canvas"></canvas>
+<button id="react" disabled>Heart reaction</button>
+<button id="cards" disabled>Hold cards</button>
+<p id="status" role="status">Warming sprites…</p>
+<script type="module" src="./example.js"></script>
+</html>

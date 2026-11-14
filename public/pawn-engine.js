@@ -591,11 +591,11 @@ function expressionIndex(expression) {
 }
 
 // World-space attachment points share the exact rounding/bob used by drawing.
-function layoutPawn(a, { x, y, direction = "south", state = "idle", progress = 0, lift = 0 }, out) {
+function layoutPawn(a, { x, y, direction = "south", state = "idle", lift = 0 }, out, frame) {
   const index = DIRECTION_INDEX[direction];
   if (!Number.isInteger(index)) throw new Error(`Unsupported direction: ${direction}.`);
   if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(lift)) throw new Error("Position and lift must be finite numbers.");
-  const frame = frameIndex(state, progress), phase = frame / ANIMATION[state].frames * Math.PI * 2;
+  const phase = frame / ANIMATION[state].frames * Math.PI * 2;
   const { width, height, head } = a.proportions, profile = index === 2 || index === 6;
   const sx = width * (profile ? .84 : 1);
   const bob = (state === "walk" ? Math.abs(Math.sin(phase)) * 1.1 : Math.sin(phase) * .5) * height;
@@ -616,9 +616,10 @@ export function createPawnRenderer({ maxCacheBytes = 128 * 1024 * 1024 } = {}) {
   if (!Number.isSafeInteger(maxCacheBytes) || maxCacheBytes < PAGE_BYTES + SHADOW_BYTES + MASK_BYTES + RASTER_BYTES)
     throw new Error("The cache needs at least one page and raster buffers (2.66 MiB).");
   const maxPages = Math.floor((maxCacheBytes - SHADOW_BYTES - MASK_BYTES - RASTER_BYTES) / PAGE_BYTES);
-  const records = new Map(), styles = new Map(), leases = new WeakMap(), pages = [], free = [], drawingLayout = {};
+  const records = new Map(), styles = new Map(), leases = new WeakMap(), pages = [], free = [];
   let first = null, last = null, shadow = null, mask = null, raster = null, closed = false, revision = 0, nextId = 0;
   let builds = 0, faceBuilds = 0, hits = 0, misses = 0, evictions = 0, poses = 0, faceSheets = 0, preparations = 0;
+  let layoutBuilds = 0, layoutHits = 0;
   function assertOpen() { if (closed) throw new Error("Pawn renderer has been disposed."); }
   function owner(appearance, face = false) {
     return { appearance, face, id: nextId++, refs: 0, slots: Array(8).fill(null) };
@@ -627,6 +628,19 @@ export function createPawnRenderer({ maxCacheBytes = 128 * 1024 * 1024 } = {}) {
     const lease = leases.get(pawn);
     if (!lease || lease.released) throw new Error("Use a live pawn prepared by this renderer.");
     return lease;
+  }
+  // One private layout per handle survives interleaved world/foreground/overhead
+  // passes. Never expose it: callers may freely edit their layout snapshots.
+  function layoutFor(lease, options) {
+    const { x, y, direction = "south", state = "idle", progress = 0, lift = 0 } = options;
+    const frame = frameIndex(state, progress), rig = lease.layout;
+    if (rig && rig.floorX === x && rig.floorY === y && rig.lift === lift &&
+        lease.direction === direction && lease.state === state && lease.frame === frame) {
+      layoutHits++; return rig;
+    }
+    const result = layoutPawn(lease.record.appearance, options, rig ?? {}, frame);
+    lease.layout = result; lease.direction = direction; lease.state = state; lease.frame = frame;
+    layoutBuilds++; return result;
   }
   function unlink(slot) {
     if (slot.prev) slot.prev.next = slot.next; else first = slot.next;
@@ -718,12 +732,12 @@ export function createPawnRenderer({ maxCacheBytes = 128 * 1024 * 1024 } = {}) {
       leases.set(pawn, { record, released: false }); return pawn;
     },
     layout(pawn, options, out = {}) {
-      assertOpen(); return layoutPawn(leaseFor(pawn).record.appearance, options, out);
+      assertOpen(); return Object.assign(out, layoutFor(leaseFor(pawn), options));
     },
     draw(ctx, pawn, options = {}) {
-      assertOpen(); const record = leaseFor(pawn).record, a = record.appearance;
+      assertOpen(); const lease = leaseFor(pawn), record = lease.record, a = record.appearance;
       const face = expressionIndex(options.expression === undefined ? "happy" : options.expression);
-      const rig = layoutPawn(a, options, drawingLayout), index = rig.index;
+      const rig = layoutFor(lease, options), index = rig.index;
       if (options.shadow !== false) ctx.drawImage(shadowImage(), rig.floorX - 32 * rig.shadowScaleX, rig.floorY - 8 * rig.shadowScaleY, 64 * rig.shadowScaleX, 16 * rig.shadowScaleY);
       const body = poseFor(record, index);
       ctx.drawImage(body.page.canvas, body.x, body.y, FRAME_WIDTH, FRAME_HEIGHT, rig.bodyX, rig.bodyY, FRAME_WIDTH, FRAME_HEIGHT);
@@ -769,7 +783,7 @@ export function createPawnRenderer({ maxCacheBytes = 128 * 1024 * 1024 } = {}) {
     release(pawn) {
       assertOpen(); const lease = leases.get(pawn);
       if (!lease || lease.released) return;
-      lease.released = true; const record = lease.record;
+      lease.released = true; lease.layout = null; const record = lease.record;
       if (--record.refs === 0) {
         freeOwner(record); records.delete(record.key);
         if (--record.style.refs === 0) { freeOwner(record.style); styles.delete(record.styleKey); }
@@ -784,12 +798,12 @@ export function createPawnRenderer({ maxCacheBytes = 128 * 1024 * 1024 } = {}) {
       if (mask) { mask.width = 0; mask.height = 0; }
       if (raster) { raster.width = 0; raster.height = 0; }
       pages.length = free.length = 0; first = last = shadow = mask = raster = null;
-      poses = faceSheets = builds = faceBuilds = hits = misses = evictions = 0;
+      poses = faceSheets = builds = faceBuilds = hits = misses = evictions = layoutBuilds = layoutHits = 0;
     },
     stats() {
       return { bytes: pages.length * PAGE_BYTES + (shadow ? SHADOW_BYTES : 0) + (mask ? MASK_BYTES : 0) + (raster ? RASTER_BYTES : 0), maxBytes: maxCacheBytes,
         pages: pages.length, poses, faceSheets, faceSprites: faceSheets * EXPRESSIONS.length, looks: records.size,
-        builds, faceBuilds, hits, misses, evictions, preparations, capacity: maxPages * PAGE_COLUMNS * PAGE_ROWS };
+        builds, faceBuilds, hits, misses, evictions, preparations, layoutBuilds, layoutHits, capacity: maxPages * PAGE_COLUMNS * PAGE_ROWS };
     },
     dispose() { this.clear(); records.clear(); styles.clear(); closed = true; },
   };
