@@ -1,0 +1,108 @@
+{
+  "engineVersion": "0.3.0",
+  "recordedDate": "2026-11-13",
+  "environment": {
+    "platform": "macOS arm64",
+    "browser": "Chrome 157",
+    "cpuGpuModel": "not available in the filesystem sandbox",
+    "canvasPixels": {
+      "width": 960,
+      "height": 540
+    },
+    "scope": "Crowd canvas with other character-lab previews also animating; current-facing samples taken after the checks finished."
+  },
+  "workload": {
+    "uniqueAppearancePerCharacter": true,
+    "actions": [
+      "hold-cards",
+      "restock",
+      "browse",
+      "clean"
+    ],
+    "reactions": "one timed drawn bubble per character, replaced after expiry",
+    "stinkyFraction": 0.2,
+    "seatedFraction": 0.5,
+    "offscreenCulling": false
+  },
+  "samples": [
+    {
+      "bodyBuildsAfterWarm": 0,
+      "faceBuildsAfterWarm": 0,
+      "effectBuildsAfterWarm": 0,
+      "evictions": 0,
+      "effectMiB": 1,
+      "characters": 500,
+      "renderScale": 1,
+      "facing": "current per character",
+      "fps": 97.99020097990216,
+      "p95CpuDrawMs": 5.9,
+      "pixelBufferMiB": 19.402587890625,
+      "warmUpMs": 224.3,
+      "simulationSeconds": 26.0795,
+      "drawSampleFrames": 300
+    },
+    {
+      "bodyBuildsAfterWarm": 0,
+      "faceBuildsAfterWarm": 0,
+      "effectBuildsAfterWarm": 0,
+      "evictions": 0,
+      "effectMiB": 1,
+      "characters": 1000,
+      "renderScale": 1,
+      "facing": "current per character",
+      "fps": 53.55017850059531,
+      "p95CpuDrawMs": 19,
+      "pixelBufferMiB": 35.152587890625,
+      "warmUpMs": 474.4,
+      "simulationSeconds": 82.0334,
+      "drawSampleFrames": 300
+    },
+    {
+      "bodyBuildsAfterWarm": 0,
+      "faceBuildsAfterWarm": 0,
+      "effectBuildsAfterWarm": 0,
+      "evictions": 0,
+      "effectMiB": 1,
+      "characters": 1000,
+      "renderScale": 1,
+      "facing": "all eight warmed, periodic turns",
+      "fps": 19.355463079454122,
+      "p95CpuDrawMs": 68.5,
+      "pixelBufferMiB": 190.027587890625,
+      "warmUpMs": 5898.5,
+      "simulationSeconds": 65.2134,
+      "drawSampleFrames": 300
+    },
+    {
+      "bodyBuildsAfterWarm": 0,
+      "faceBuildsAfterWarm": 0,
+      "effectBuildsAfterWarm": 0,
+      "evictions": 0,
+      "effectMiB": 1,
+      "characters": 1000,
+      "renderScale": 2,
+      "facing": "all eight warmed, periodic turns",
+      "fps": 17.14122464527226,
+      "p95CpuDrawMs": 54.9,
+      "pixelBufferMiB": 190.027587890625,
+      "warmUpMs": 6193
+    }
+  ],
+  "verification": {
+    "standaloneTestsPassed": 33,
+    "workspaceTestsPassed": 107,
+    "realCanvasChecksPassed": 6510,
+    "realCanvasCases": 30,
+    "directions": 8,
+    "actions": 15,
+    "reactions": 12,
+    "proportions": [
+      "default",
+      "all minimum",
+      "all maximum",
+      "short body with large head and wide body",
+      "tall body with small head and narrow body"
+    ]
+  },
+  "limits": "One-second FPS snapshots; p95 measures CPU update/draw command submission over up to 300 recent frames, not a GPU timer. Timings varied with run, view distribution and render scale; these are local observations, not a cross-device guarantee. Pixel buffers include the bounded body/face cache and effects/raster buffers, not browser heap or GPU copies. The full 1,000-character overlay workload did not reliably meet 60 fps. Use current-facing warm-up and game-level visibility culling; prewarm extra directions selectively."
+}
